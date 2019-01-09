@@ -37,36 +37,37 @@ object DoobieTests extends TestSuite {
     id: F[Int],
     name: F[String],
     age: F[Int]
-  ) extends Table[F] {
-    def tableName = "person"
-  }
-
-  val personTable = Person[Column](
-    id = Column("id"),
-    name = Column("name"),
-    age = Column("age")
   )
+
+  implicit object Person extends Table[Person] {
+    val name = "person"
+    val schema = Person[Column](
+      id = Column("id"),
+      name = Column("name"),
+      age = Column("age")
+    )
+  }
 
   case class Pet[F[_]](
     id: F[Int],
     name: F[String],
     age: F[Int],
     personId: F[Int]
-  ) extends Table[F] {
-    def tableName = "pet"
-  }
-
-  val petTable = Pet[Column](
-    id = Column("id"),
-    name = Column("name"),
-    age = Column("age"),
-    personId = Column("person_id")
   )
 
+  implicit object Pet extends Table[Pet] {
+    val name = "pet"
+    val schema = Pet[Column](
+      id = Column("id"),
+      name = Column("name"),
+      age = Column("age"),
+      personId = Column("person_id")
+    )
+  }
 
   val query = for {
-    person <- Query.query(personTable)
-    pet <- Query.query(petTable) if person.id === pet.id
+    person <- Query.query[Person]
+    pet <- Query.query[Pet] if person.id === pet.id
   } yield (person.name, pet.name)
 
 

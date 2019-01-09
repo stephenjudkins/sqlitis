@@ -11,33 +11,36 @@ object QueryTests extends TestSuite {
   case class TableA[F[_]](
     a: F[Int],
     b: F[String]
-  ) extends Table[F] {
-    val tableName = "foo"
+  )
+  implicit object TableA extends Table[TableA] {
+    val schema = TableA[Column](
+      a = Column[Int]("a"),
+      b = Column[String]("b")
+    )
+
+    val name = "foo"
   }
 
-  val tableA = TableA[Column](
-    a = Column[Int]("a"),
-    b = Column[String]("b")
-  )
 
   case class TableB[F[_]](
     x: F[Int],
     y: F[String]
-  ) extends Table[F] {
-    val tableName = "bar"
-  }
-
-  val tableB = TableB[Column](
-    x = Column[Int]("x"),
-    y = Column[String]("y")
   )
 
+  implicit object TableB extends Table[TableB] {
+    val schema = TableB[Column](
+      x = Column[Int]("x"),
+      y = Column[String]("y")
+    )
+
+    val name = "bar"
+  }
 
 
 
   def tests: Tests = Tests {
     'Querify - {
-      val q = Querify("foo_42", tableA)
+      val q = Querify("foo_42", TableA.schema)
 
       assert(q == TableA[Ref](
         a = Ref[Int](Identifier(Some("foo_42"), "a")),
@@ -48,8 +51,8 @@ object QueryTests extends TestSuite {
     'queryTuple - {
 
       val q = for {
-        a1 <- Query.query(tableA)
-        a2 <- Query.query(tableA)
+        a1 <- Query.query[TableA]
+        a2 <- Query.query[TableA]
       } yield (a1.a, a2.b)
 
       implicitly[q.type <:< Q[(Ref[Int], Ref[String])]]
@@ -70,7 +73,7 @@ object QueryTests extends TestSuite {
 
 
     'queryTable - {
-      val o = Query.query(tableA).run
+      val o = Query.query[TableA].run
 
       implicitly[o.type <:< SelectResult[TableA[Id]]]
 
@@ -89,8 +92,8 @@ object QueryTests extends TestSuite {
     'filter - {
 
       val q = for {
-        ta <- Query.query(tableA)
-        tb <- Query.query(tableB) if ta.a === tb.x
+        ta <- Query.query[TableA]
+        tb <- Query.query[TableB] if ta.a === tb.x
       } yield (ta.b, tb.y)
 
       val sql = q.run.sql

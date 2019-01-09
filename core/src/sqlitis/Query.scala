@@ -15,8 +15,9 @@ object Query {
 
   case class Extractor[A](i: Int)
 
-  trait Table[F[_]] {
-    def tableName: String
+  trait Table[T[_[_]]] {
+    def schema: T[Column]
+    def name: String
   }
 
   private def relationName(current: Map[String, String], tableName: String):String = {
@@ -29,13 +30,13 @@ object Query {
   }
 
 
-  def query[T[_[_]]](t: T[Column])(implicit isTable: T[Column] <:< Table[Column], querify: Querify[T]):Q[T[Ref]] = {
+  def query[T[_[_]]](implicit table: Table[T], querify: Querify[T]):Q[T[Ref]] = {
     new Q[T[Ref]] {
       def apply(s: QueryState): (T[Ref], QueryState) = {
-        val tableName = isTable(t).tableName
+        val tableName = table.name
         val aliasName = relationName(s.relations, tableName)
         (
-          querify(aliasName, t),
+          querify(aliasName, table.schema),
           s.copy(
             relations = s.relations + (aliasName -> tableName)
           )
