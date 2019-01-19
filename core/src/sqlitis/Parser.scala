@@ -1,7 +1,10 @@
 package sqlitis
 
 import Sql._
-import atto._, Atto._
+import atto._
+import Atto._
+import atto.Parser.{Failure, Success, TResult}
+import cats.data.NonEmptyList
 import cats.implicits._
 
 object Parser {
@@ -9,39 +12,46 @@ object Parser {
   private val letter = charRange('A' to 'Z') | charRange('a' to 'z')
   private val digit = charRange('0' to '9')
 
-  private def literal = string("?").map(_ => Literal)
+  private val literal = string("?").map(_ => Literal)
 
 
-  private def idToken = (letter ~ many(letter | digit | char('_'))).map( { case (h, t) => s"$h${t.mkString}"})
+  private val idToken = (letter ~ many(letter | digit | char('_'))).map( { case (h, t) => s"$h${t.mkString}"})
 
-  private def identifier:Parser[Identifier] =
-    (idToken ~ char('.').void ~ idToken).map { case ((r, _), i) => Identifier(Some(r), i) } |
+  private val identifier:Parser[Identifier] =
+    ((idToken <~ char('.')) ~ idToken).map { case (r, i) => Identifier(Some(r), i) } |
     idToken.map(Identifier(None, _))
 
-  private def singleExpr:Parser[Expression] = token(not | functionCall | identifier.widen[Expression] | literal.widen[Expression] | parens(expr))
+  private val not:Parser[Expression] = (kw("NOT") ~> expr).map(Not(_))
 
-  private def not:Parser[Expression] = (kw("NOT") ~> expr).map(Not(_))
-
-  private def functionCall:Parser[Expression] = (identifier ~ parens(sepBy(expr, token(char(','))))).map { case (n, args) =>
+  private val functionCall:Parser[Expression] = (identifier ~ parens(sepBy(expr, token(char(','))))).map { case (n, args) =>
     FunctionCall(n.name, args)
   }
 
-  private def comma = token(string(","))
+  private val singleExpr:Parser[Expression] = token(not | functionCall | identifier.widen[Expression] | literal.widen[Expression] | parens(expr))
 
-  private def byPrecedence:List[(String, (Expression, Expression) => Expression)] = List(
-    "*" -> (Mul(_, _)),
-    "+" -> (Add(_, _)),
-    "<>" -> (NotEquals(_, _)),
-    "!=" -> (NotEquals(_, _)),
-    "=" -> (Equals(_, _)),
-    "AND" -> (And(_,_)),
-    "OR" -> (Or(_,_))
+  private val comma = token(string(","))
+
+  private case class Op(
+    sym: String,
+    to: (Expression, Expression) => Expression
   )
 
+  private case class Level(
+    ops: NonEmptyList[Op],
+    leftAssociative: Boolean
+  )
 
-  private def orderBy = (
-    expr ~ opt(kw("ASC").map(_ => true) | kw("DESC").map(_ => false)).map(_.getOrElse(false))
-  ).map((OrderBy(_,_)).tupled)
+  private def l(h: Op, t: Op*) = Level(NonEmptyList(h, t.toList), leftAssociative = true)
+  private def r(h: Op, t: Op*) = Level(NonEmptyList(h, t.toList), leftAssociative = false)
+
+  private val opsByPrecedence = List(
+    l(Op("^", Exp)),
+    l(Op("*", Mul), Op("/", Div), Op("%", Mod)),
+    l(Op("+", Add), Op("-", Sub)),
+    r(Op("=", Equals), Op("<>", NotEquals), Op("!=", NotEquals)),
+    l(Op("AND", And)),
+    l(Op("OR", Or))
+  )
 
   private def kw(s: String) = token(stringCI(s))
 
@@ -51,21 +61,36 @@ object Parser {
       case None => ok(None)
     }
 
-  implicit val expr:Parser[Expression] = byPrecedence.foldLeft(singleExpr) { case (e, (name, toExpr)) =>
-    sepBy1(e, stringCI(name) <~ many1(whitespace)).map(_.reduceLeft(toExpr)).named(name)
-  }
+  implicit val expr:Parser[Expression] = opsByPrecedence.foldLeft(singleExpr) { case (e, level) =>
 
-  private def field:Parser[Field] = token(
+    val op:Parser[Op] = choice(level.ops.map(o => stringCI(o.sym).map(_ => o))) <~ (whitespace ~ skipWhitespace)
+
+    if (level.leftAssociative)
+      (e ~ many(op ~ e)).map { case (i, t) =>
+        t.foldLeft(i) { case (a, (o, b)) => o.to(a,b) }
+      }
+    else
+      (many(e ~ op) ~ e).map { case (t, i) =>
+        t.foldRight(i) { case ((a, o), b) => o.to(a,b) }
+      }
+
+  }.named("expr")
+
+  private val field:Parser[Field] = token(
     (expr ~ kw("AS") ~ identifier).map[Field] { case ((e, _), i) => ExpressionField(e, Some(i.name)) } |
     (identifier <~ kw(".") <~ kw("*")).map[Field](i => Splat(Some(i.name))) |
     kw("*").map[Field](_ => Splat(None)) |
     expr.map[Field](ExpressionField(_, None))
   )
 
-  private def from = token[From](
+  private val from = token[From](
     (identifier ~ whitespace ~ identifier).map { case ((t, _), a) => TableName(t.name, Some(a.name)) } |
     identifier.map(i => TableName(i.name, None))
   )
+
+  private val orderBy = (
+    expr ~ opt(kw("ASC").map(_ => true) | kw("DESC").map(_ => false)).map(_.getOrElse(false))
+  ).map((OrderBy(_,_)).tupled)
 
   implicit val select:Parser[Select] = (
     kw("SELECT") ~> opt(kw("DISTINCT")).map(_.isDefined) ~

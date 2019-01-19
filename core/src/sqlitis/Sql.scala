@@ -45,8 +45,16 @@ object Sql {
   case class Equals(a: Expression, b: Expression) extends BinaryOperator("=")
   case class NotEquals(a: Expression, b: Expression) extends BinaryOperator("!=")
 
-  case class Add(a: Expression, b: Expression) extends BinaryOperator("+")
   case class Mul(a: Expression, b: Expression) extends BinaryOperator("*")
+  case class Div(a: Expression, b: Expression) extends BinaryOperator("/")
+  case class Mod(a: Expression, b: Expression) extends BinaryOperator("%")
+
+  case class Add(a: Expression, b: Expression) extends BinaryOperator("+")
+  case class Sub(a: Expression, b: Expression) extends BinaryOperator("-")
+
+  case class Exp(a: Expression, b: Expression) extends BinaryOperator("^")
+
+
 
   
   case class OrderBy(e: Expression, asc: Boolean)

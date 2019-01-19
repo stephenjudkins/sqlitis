@@ -28,24 +28,27 @@ object ParserGenTests extends TestSuite {
     'AND - {
       testSql[Expression]("a AND b ", And(Identifier("a"), Identifier("b")))
     }
+    'leftAssociativity - {
+      testSql[Expression]("a AND b AND c", And(And(Identifier("a"), Identifier("b")), Identifier("c")))
+    }
+    'rightAssociativity - {
+      testSql[Expression]("a = b = c", Equals(Identifier("a"), Equals(Identifier("b"), Identifier("c"))))
+    }
+    "precedence" - {
+      testSql[Expression]("a OR b AND c", Or(Identifier("a"), And(Identifier("b"), Identifier("c"))))
+    }
     "()" - {
       testSql[Expression]("(a OR b) AND c", And(Or(Identifier("a"), Identifier("b")), Identifier("c")))
     }
     "function call" - {
       testSql[Expression]("booFooWoo(x,y,z)", FunctionCall("booFooWoo", List(Identifier("x"), Identifier("y"), Identifier("z"))))
     }
-
-    "AND OR" - {
-      testSql[Expression]("a OR b AND c", Or(Identifier("a"), And(Identifier("b"), Identifier("c"))))
-    }
-
     "* +" - {
       testSql[Expression]("a* b + c", Add(Mul(Identifier("a"), Identifier("b")), Identifier("c")))
     }
     'NOT - {
       testSql[Expression]("NOT x", Not(Identifier("x")))
     }
-
     'SELECT - {
       testSql[Select](
         "SELECT spam.foo AS zomg, eggs.bar AS wtf FROM t1 spam, t2 eggs WHERE green = red ORDER BY bar ASC LIMIT 420",
