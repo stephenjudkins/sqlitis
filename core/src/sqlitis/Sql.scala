@@ -54,10 +54,12 @@ object Sql {
 
   case class Exp(a: Expression, b: Expression) extends BinaryOperator("^")
 
-
-
-  
   case class OrderBy(e: Expression, asc: Boolean)
 
 
+  case class Insert(
+    table: String,
+    columns: List[String],
+    values: List[Expression]
+  )
 }

@@ -43,6 +43,11 @@ object Generator {
     }
   }
 
+  implicit object GenInsert extends Generator[Insert] {
+    def print(a: Insert): String =
+      s"INSERT INTO ${a.table} (${a.columns.mkString(", ")}) VALUES (${a.values.map(GenExpr.print).mkString(", ")})"
+  }
+
 
 }
 

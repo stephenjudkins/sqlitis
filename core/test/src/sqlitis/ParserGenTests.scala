@@ -61,6 +61,16 @@ object ParserGenTests extends TestSuite {
         )
       )
     }
+    'INSERT - {
+      testSql[Insert](
+        "INSERT INTO foo (a,b,c) VALUES (x,y,z)",
+        Sql.Insert(
+          table = "foo",
+          columns = List("a", "b", "c"),
+          values = List(Identifier("x"), Identifier("y"), Identifier("z"))
+        )
+      )
+    }
 
 
   }

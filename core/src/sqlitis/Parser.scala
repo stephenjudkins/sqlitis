@@ -23,7 +23,7 @@ object Parser {
 
   private val not:Parser[Expression] = (kw("NOT") ~> expr).map(Not(_))
 
-  private val functionCall:Parser[Expression] = (identifier ~ parens(sepBy(expr, token(char(','))))).map { case (n, args) =>
+  private val functionCall:Parser[Expression] = (identifier ~ parens(sepBy(expr, comma))).map { case (n, args) =>
     FunctionCall(n.name, args)
   }
 
@@ -110,6 +110,12 @@ object Parser {
         limit = limit
       )
   }
+
+  private val s = whitespace ~> skipWhitespace
+
+  implicit val insert:Parser[Insert] = (
+    kw("INSERT") ~> kw("INTO") ~> token(idToken) ~ parens(sepBy(token(idToken), comma)) ~ (s ~> kw("VALUES") ~> parens(sepBy(expr, comma)))
+  ).map { case ((table, columns), values) => Sql.Insert(table, columns, values) }
 
 
 }
