@@ -4,9 +4,15 @@ import doobie.free.connection.ConnectionIO
 import doobie.util.Read
 import doobie.util.query.Query
 import sqlitis.Generator
-import sqlitis.Query.SelectResult
+import sqlitis.Query._
 
 object Doobie {
-  def select[A: Read](r: SelectResult[A]):ConnectionIO[List[A]] =
-    Query[Unit, A](Generator.GenSelect.print(r.sql)).to[List](())
+  def select[A, O](q: Q[A])(
+    implicit
+    resultExtractor: ResultExtractor[A, O],
+    read: Read[O]
+  ):ConnectionIO[List[O]] = Query[Unit, O](
+    Generator.GenSelect.print(q.run(resultExtractor).sql)
+  ).to[List](())
+
 }

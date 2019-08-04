@@ -39,7 +39,7 @@ object Generator {
         s.limit.map(l => s"LIMIT $l").getOrElse("")
       )
 
-      s"SELECT ${clauses.mkString("\n")}".trim
+      s"SELECT ${clauses.filter(_.nonEmpty).mkString("\n")}".trim
     }
   }
 

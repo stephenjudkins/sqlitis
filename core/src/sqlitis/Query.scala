@@ -1,12 +1,34 @@
 package sqlitis
 
 import shapeless._
-import shapeless.ops.hlist.{Comapped, Mapped, Mapper, ToTraversable, Tupler, ZipApply, ZipConst, ZipWith}
+import shapeless.ops.hlist.{Comapped, Mapper, ToTraversable, Tupler, ZipConst}
+import sqlitis.Query.Ctx.{Concrete, Queried, Schema}
 import sqlitis.Sql._
 
 import scala.annotation.tailrec
 
 object Query {
+
+  trait Ctx {
+    type NoDefault[_]
+    type HasDefault[_]
+  }
+
+  object Ctx {
+    type AllColumns[F[_]] = Ctx {
+      type NoDefault[X] = F[X]
+      type HasDefault[X] = F[X]
+    }
+
+    type Schema = AllColumns[Column]
+    type Queried = AllColumns[Ref]
+    type Concrete = AllColumns[Id]
+    type Inserted = Ctx {
+      type NoDefault[X] = X
+      type HasDefault[X] = Option[X]
+    }
+  }
+
 
   case class Column[A](name: String)
   case class Ref[A](expr: Expression) {
@@ -15,8 +37,8 @@ object Query {
 
   case class Extractor[A](i: Int)
 
-  trait Table[T[_[_]]] {
-    def schema: T[Column]
+  abstract class Table[T[_ <: Ctx]] {
+    def schema: T[Schema]
     def name: String
   }
 
@@ -30,18 +52,16 @@ object Query {
   }
 
 
-  def query[T[_[_]]](implicit table: Table[T], querify: Querify[T]):Q[T[Ref]] = {
-    new Q[T[Ref]] {
-      def apply(s: QueryState): (T[Ref], QueryState) = {
-        val tableName = table.name
-        val aliasName = relationName(s.relations, tableName)
-        (
-          querify(aliasName, table.schema),
-          s.copy(
-            relations = s.relations + (aliasName -> tableName)
-          )
+  def apply[T[_ <: Ctx]](implicit table: Table[T], querify: Querify[T]):Q[T[Queried]] = new Q[T[Queried]] {
+    def apply(s: QueryState): (T[Queried], QueryState) = {
+      val tableName = table.name
+      val aliasName = relationName(s.relations, tableName)
+      (
+        querify(aliasName, table.schema),
+        s.copy(
+          relations = s.relations + (aliasName -> tableName)
         )
-      }
+      )
     }
   }
 
@@ -51,12 +71,12 @@ object Query {
   )
 
 
-  trait Querify[T[_[_]]] {
-    def apply(tableAlias: String, t: T[Column]):T[Ref]
+  trait Querify[T[_ <: Ctx]] {
+    def apply(tableAlias: String, t: T[Schema]):T[Queried]
   }
 
   object Querify {
-    def apply[T[_[_]]](tableAlias: String, t: T[Column])(implicit q: Querify[T]):T[Ref] = q(tableAlias, t)
+    def apply[T[_ <: Ctx]](tableAlias: String, t: T[Schema])(implicit q: Querify[T]):T[Queried] = q(tableAlias, t)
 
     object M extends Poly1 {
       implicit def c[A]:Case.Aux[(Column[A], String), Ref[A]] = at[(Column[A], String)] {
@@ -65,18 +85,18 @@ object Query {
     }
 
     implicit def instance[
-      T[_[_]],
+      T[_ <: Ctx],
       H1 <: HList,
       H2 <: HList,
       H3 <: HList
     ](
       implicit
-      from: Generic.Aux[T[Column], H1],
+      from: Generic.Aux[T[Schema], H1],
       zipper: ZipConst.Aux[String, H1, H2],
       mapper: Mapper.Aux[M.type, H2, H3],
-      to: Generic.Aux[T[Ref], H3] = null
+      to: Generic.Aux[T[Queried], H3]
     ):Querify[T] = new Querify[T] {
-      def apply(tableAlias: String, t: T[Column]): T[Ref] = to.from(mapper(zipper(tableAlias, from.to(t))))
+      def apply(tableAlias: String, t: T[Schema]): T[Queried] = to.from(mapper(zipper(tableAlias, from.to(t))))
     }
   }
 
@@ -91,13 +111,13 @@ object Query {
       case Ref(expr) => ExpressionField(expr, None)
     }
 
-    implicit def tableInstance[T[_[_]], HI <: HList, HO <: HList](
+    implicit def tableInstance[T[_ <: Ctx], HI <: HList, HO <: HList](
       implicit
-      g1: Generic.Aux[T[Ref], HI],
+      g1: Generic.Aux[T[Queried], HI],
       comapped: Comapped.Aux[HI, Ref, HO],
       toList: ToTraversable.Aux[HI, List, Ref[_]]
-    ):ResultExtractor[T[Ref], T[Id]] = new ResultExtractor[T[Ref], T[Id]] {
-      def apply(a: T[Ref]): List[Field] = toFields(toList(g1.to(a)))
+    ):ResultExtractor[T[Queried], T[Concrete]] = new ResultExtractor[T[Queried], T[Concrete]] {
+      def apply(a: T[Queried]): List[Field] = toFields(toList(g1.to(a)))
     }
 
     implicit def tupleInstance[I, O, HI <: HList, HO <: HList](
@@ -114,10 +134,7 @@ object Query {
 
 
   trait Q[A] { self =>
-    def run[O](
-      implicit
-      resultExtractor: ResultExtractor[A, O],
-    ):SelectResult[O] = {
+    def run[O](implicit resultExtractor: ResultExtractor[A, O]):SelectResult[O] = {
 
       val (result, queryState) = apply(QueryState(Map.empty, None))
 

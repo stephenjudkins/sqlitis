@@ -8,12 +8,12 @@ import utest._
 object QueryTests extends TestSuite {
 
 
-  case class TableA[F[_]](
-    a: F[Int],
-    b: F[String]
+  case class TableA[C <: Ctx](
+    a: C#NoDefault[Int],
+    b: C#NoDefault[String]
   )
   implicit object TableA extends Table[TableA] {
-    val schema = TableA[Column](
+    val schema = TableA[Ctx.Schema](
       a = Column[Int]("a"),
       b = Column[String]("b")
     )
@@ -22,13 +22,13 @@ object QueryTests extends TestSuite {
   }
 
 
-  case class TableB[F[_]](
-    x: F[Int],
-    y: F[String]
+  case class TableB[C <: Ctx](
+    x: C#NoDefault[Int],
+    y: C#NoDefault[String]
   )
 
   implicit object TableB extends Table[TableB] {
-    val schema = TableB[Column](
+    val schema = TableB[Ctx.Schema](
       x = Column[Int]("x"),
       y = Column[String]("y")
     )
@@ -42,7 +42,7 @@ object QueryTests extends TestSuite {
     'Querify - {
       val q = Querify("foo_42", TableA.schema)
 
-      assert(q == TableA[Ref](
+      assert(q == TableA[Ctx.Queried](
         a = Ref[Int](Identifier(Some("foo_42"), "a")),
         b = Ref[String](Identifier(Some("foo_42"), "b"))
       ))
@@ -51,8 +51,8 @@ object QueryTests extends TestSuite {
     'queryTuple - {
 
       val q = for {
-        a1 <- Query.query[TableA]
-        a2 <- Query.query[TableA]
+        a1 <- Query[TableA]
+        a2 <- Query[TableA]
       } yield (a1.a, a2.b)
 
       implicitly[q.type <:< Q[(Ref[Int], Ref[String])]]
@@ -73,9 +73,9 @@ object QueryTests extends TestSuite {
 
 
     'queryTable - {
-      val o = Query.query[TableA].run
+      val o = Query[TableA].run
 
-      implicitly[o.type <:< SelectResult[TableA[Id]]]
+      implicitly[o.type <:< SelectResult[TableA[Ctx.Concrete]]]
 
       val sql = o.sql
       val expected = Select(
@@ -92,8 +92,8 @@ object QueryTests extends TestSuite {
     'filter - {
 
       val q = for {
-        ta <- Query.query[TableA]
-        tb <- Query.query[TableB] if ta.a === tb.x
+        ta <- Query[TableA]
+        tb <- Query[TableB] if ta.a === tb.x
       } yield (ta.b, tb.y)
 
       val sql = q.run.sql
