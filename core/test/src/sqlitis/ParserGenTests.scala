@@ -20,37 +20,37 @@ object ParserGenTests extends TestSuite {
 
   def tests: Tests = Tests {
     'identifier - {
-      testSql[Expression]("a", Identifier("a"))
-      testSql[Expression]("x.y", Identifier(Some("x"), "y"))
-      testSql[Expression]("abcd", Identifier("abcd"))
-      testSql[Expression]("A42", Identifier("A42"))
+      testSql[Expression[Unit]]("a", Identifier("a"))
+      testSql[Expression[Unit]]("x.y", Identifier(Some("x"), "y"))
+      testSql[Expression[Unit]]("abcd", Identifier("abcd"))
+      testSql[Expression[Unit]]("A42", Identifier("A42"))
     }
     'AND - {
-      testSql[Expression]("a AND b ", And(Identifier("a"), Identifier("b")))
+      testSql[Expression[Unit]]("a AND b ", And(Identifier("a"), Identifier("b")))
     }
     'leftAssociativity - {
-      testSql[Expression]("a AND b AND c", And(And(Identifier("a"), Identifier("b")), Identifier("c")))
+      testSql[Expression[Unit]]("a AND b AND c", And(And(Identifier("a"), Identifier("b")), Identifier("c")))
     }
     'rightAssociativity - {
-      testSql[Expression]("a = b = c", Equals(Identifier("a"), Equals(Identifier("b"), Identifier("c"))))
+      testSql[Expression[Unit]]("a = b = c", Equals(Identifier("a"), Equals(Identifier("b"), Identifier("c"))))
     }
     "precedence" - {
-      testSql[Expression]("a OR b AND c", Or(Identifier("a"), And(Identifier("b"), Identifier("c"))))
+      testSql[Expression[Unit]]("a OR b AND c", Or(Identifier("a"), And(Identifier("b"), Identifier("c"))))
     }
     "()" - {
-      testSql[Expression]("(a OR b) AND c", And(Or(Identifier("a"), Identifier("b")), Identifier("c")))
+      testSql[Expression[Unit]]("(a OR b) AND c", And(Or(Identifier("a"), Identifier("b")), Identifier("c")))
     }
     "function call" - {
-      testSql[Expression]("booFooWoo(x,y,z)", FunctionCall("booFooWoo", List(Identifier("x"), Identifier("y"), Identifier("z"))))
+      testSql[Expression[Unit]]("booFooWoo(x,y,z)", FunctionCall("booFooWoo", List(Identifier("x"), Identifier("y"), Identifier("z"))))
     }
     "* +" - {
-      testSql[Expression]("a* b + c", Add(Mul(Identifier("a"), Identifier("b")), Identifier("c")))
+      testSql[Expression[Unit]]("a* b + c", Add(Mul(Identifier("a"), Identifier("b")), Identifier("c")))
     }
     'NOT - {
-      testSql[Expression]("NOT x", Not(Identifier("x")))
+      testSql[Expression[Unit]]("NOT x", Not(Identifier("x")))
     }
     'SELECT - {
-      testSql[Select](
+      testSql[Select[Unit]](
         "SELECT spam.foo AS zomg, eggs.bar AS wtf FROM t1 spam, t2 eggs WHERE green = red ORDER BY bar ASC LIMIT 420",
         Select(
           fields = List(ExpressionField(Identifier(Some("spam"), "foo"), Some("zomg")), ExpressionField(Identifier(Some("eggs"), "bar"), Some("wtf"))),
@@ -62,7 +62,7 @@ object ParserGenTests extends TestSuite {
       )
     }
     'INSERT - {
-      testSql[Insert](
+      testSql[Insert[Unit]](
         "INSERT INTO foo (a,b,c) VALUES (x,y,z)",
         Sql.Insert(
           table = "foo",

@@ -12,7 +12,7 @@ object Parser {
   private val letter = charRange('A' to 'Z') | charRange('a' to 'z')
   private val digit = charRange('0' to '9')
 
-  private val literal = string("?").map(_ => Literal)
+  private val literal = string("?").map(_ => Literal(()))
 
 
   private val idToken = (letter ~ many(letter | digit | char('_'))).map( { case (h, t) => s"$h${t.mkString}"})
@@ -21,19 +21,19 @@ object Parser {
     ((idToken <~ char('.')) ~ idToken).map { case (r, i) => Identifier(Some(r), i) } |
     idToken.map(Identifier(None, _))
 
-  private val not:Parser[Expression] = (kw("NOT") ~> expr).map(Not(_))
+  private val not:Parser[Expression[Unit]] = (kw("NOT") ~> expr).map(Not(_))
 
-  private val functionCall:Parser[Expression] = (identifier ~ parens(sepBy(expr, comma))).map { case (n, args) =>
+  private val functionCall:Parser[Expression[Unit]] = (identifier ~ parens(sepBy(expr, comma))).map { case (n, args) =>
     FunctionCall(n.name, args)
   }
 
-  private val singleExpr:Parser[Expression] = token(not | functionCall | identifier.widen[Expression] | literal.widen[Expression] | parens(expr))
+  private val singleExpr:Parser[Expression[Unit]] = token(not | functionCall | identifier.widen[Expression[Unit]] | literal.widen[Expression[Unit]] | parens(expr))
 
   private val comma = token(string(","))
 
   private case class Op(
     sym: String,
-    to: (Expression, Expression) => Expression
+    to: (Expression[Unit], Expression[Unit]) => Expression[Unit]
   )
 
   private case class Level(
@@ -45,12 +45,12 @@ object Parser {
   private def r(h: Op, t: Op*) = Level(NonEmptyList(h, t.toList), leftAssociative = false)
 
   private val opsByPrecedence = List(
-    l(Op("^", Exp)),
-    l(Op("*", Mul), Op("/", Div), Op("%", Mod)),
-    l(Op("+", Add), Op("-", Sub)),
-    r(Op("=", Equals), Op("<>", NotEquals), Op("!=", NotEquals)),
-    l(Op("AND", And)),
-    l(Op("OR", Or))
+    l(Op("^", Exp[Unit])),
+    l(Op("*", Mul[Unit]), Op("/", Div[Unit]), Op("%", Mod[Unit])),
+    l(Op("+", Add[Unit]), Op("-", Sub[Unit])),
+    r(Op("=", Equals[Unit]), Op("<>", NotEquals[Unit]), Op("!=", NotEquals[Unit])),
+    l(Op("AND", And[Unit])),
+    l(Op("OR", Or[Unit]))
   )
 
   private def kw(s: String) = token(stringCI(s))
@@ -61,7 +61,7 @@ object Parser {
       case None => ok(None)
     }
 
-  implicit val expr:Parser[Expression] = opsByPrecedence.foldLeft(singleExpr) { case (e, level) =>
+  implicit val expr:Parser[Expression[Unit]] = opsByPrecedence.foldLeft(singleExpr) { case (e, level) =>
 
     val op:Parser[Op] = choice(level.ops.map(o => stringCI(o.sym).map(_ => o))) <~ (whitespace ~ skipWhitespace)
 
@@ -76,11 +76,11 @@ object Parser {
 
   }.named("expr")
 
-  private val field:Parser[Field] = token(
-    (expr ~ kw("AS") ~ identifier).map[Field] { case ((e, _), i) => ExpressionField(e, Some(i.name)) } |
-    (identifier <~ kw(".") <~ kw("*")).map[Field](i => Splat(Some(i.name))) |
-    kw("*").map[Field](_ => Splat(None)) |
-    expr.map[Field](ExpressionField(_, None))
+  private val field:Parser[Field[Unit]] = token(
+    (expr ~ kw("AS") ~ identifier).map[Field[Unit]] { case ((e, _), i) => ExpressionField(e, Some(i.name)) } |
+    (identifier <~ kw(".") <~ kw("*")).map[Field[Unit]](i => Splat(Some(i.name))) |
+    kw("*").map[Field[Unit]](_ => Splat(None)) |
+    expr.map[Field[Unit]](ExpressionField(_, None))
   )
 
   private val from = token[From](
@@ -90,9 +90,9 @@ object Parser {
 
   private val orderBy = (
     expr ~ opt(kw("ASC").map(_ => true) | kw("DESC").map(_ => false)).map(_.getOrElse(false))
-  ).map((OrderBy(_,_)).tupled)
+  ).map((OrderBy[Unit](_,_)).tupled)
 
-  implicit val select:Parser[Select] = (
+  implicit val select:Parser[Select[Unit]] = (
     kw("SELECT") ~> opt(kw("DISTINCT")).map(_.isDefined) ~
       sepBy(field, comma) ~
       optKw("FROM", sepBy(from, comma)).map(_.getOrElse(Nil)) ~
@@ -113,7 +113,7 @@ object Parser {
 
   private val s = whitespace ~> skipWhitespace
 
-  implicit val insert:Parser[Insert] = (
+  implicit val insert:Parser[Insert[Unit]] = (
     kw("INSERT") ~> kw("INTO") ~> token(idToken) ~ parens(sepBy(token(idToken), comma)) ~ (s ~> kw("VALUES") ~> parens(sepBy(expr, comma)))
   ).map { case ((table, columns), values) => Sql.Insert(table, columns, values) }
 

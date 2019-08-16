@@ -30,7 +30,7 @@ object InsertTests extends TestSuite {
         name = "foobar"
       )).run[Insert.RawSql]
 
-      val expected = Sql.Insert("table_a", List("id", "name"), List(Literal, Literal))
+      val expected = Sql.Insert("table_a", List("id", "name"), List(Literal(()), Literal(())))
       assert(sql == expected)
     }
 
@@ -41,7 +41,7 @@ object InsertTests extends TestSuite {
 
       TableA[Schema](id = Column("id"), name = Column("name"))
 
-      val expected = Sql.Insert("table_a", List( "name"), List(Literal))
+      val expected = Sql.Insert("table_a", List( "name"), List(Literal(())))
       assert(sql == expected)
     }
   }

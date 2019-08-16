@@ -31,7 +31,7 @@ object Query {
 
 
   case class Column[A](name: String)
-  case class Ref[A](expr: Expression) {
+  case class Ref[A](expr: Expression[Unit]) {
     def ===(other: Ref[A]) = Ref[Boolean](Equals(expr, other.expr))
   }
 
@@ -67,7 +67,7 @@ object Query {
 
   case class QueryState(
     relations: Map[String, String],
-    filter: Option[Expression]
+    filter: Option[Expression[Unit]]
   )
 
 
@@ -103,7 +103,7 @@ object Query {
 
 
   trait ResultExtractor[I, O] {
-    def apply(a: I):List[Field]
+    def apply(a: I):List[Field[Unit]]
   }
   object ResultExtractor {
 
@@ -117,7 +117,7 @@ object Query {
       comapped: Comapped.Aux[HI, Ref, HO],
       toList: ToTraversable.Aux[HI, List, Ref[_]]
     ):ResultExtractor[T[Queried], T[Concrete]] = new ResultExtractor[T[Queried], T[Concrete]] {
-      def apply(a: T[Queried]): List[Field] = toFields(toList(g1.to(a)))
+      def apply(a: T[Queried]): List[Field[Unit]] = toFields(toList(g1.to(a)))
     }
 
     implicit def tupleInstance[I, O, HI <: HList, HO <: HList](
@@ -128,7 +128,7 @@ object Query {
       tOut: Tupler.Aux[HO, O],
       toList: ToTraversable.Aux[HI, List, Ref[_]]
     ):ResultExtractor[I,O] = new ResultExtractor[I, O] {
-      def apply(a: I): List[Field] = toFields(toList(g1.to(a)))
+      def apply(a: I): List[Field[Unit]] = toFields(toList(g1.to(a)))
     }
   }
 
@@ -179,11 +179,8 @@ object Query {
 
 
   case class SelectResult[A](
-    sql: Sql.Select
+    sql: Sql.Select[Unit]
   )
-
-
-//  case class Select[A](relation: String)
 
 }
 

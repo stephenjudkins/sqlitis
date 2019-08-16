@@ -5,24 +5,24 @@ import sqlitis.Sql._
 object Generator {
 
 
-  implicit object GenExpr extends Generator[Expression] {
-    def binaryOp(op: BinaryOperator): String = s"(${print(op.a)} ${op.name} ${print(op.b)})"
+  implicit object GenExpr extends Generator[Expression[Unit]] {
+    def binaryOp(op: BinaryOperator[Unit]): String = s"(${print(op.a)} ${op.name} ${print(op.b)})"
 
-    def print(expr: Expression): String = expr match {
+    def print(expr: Expression[Unit]): String = expr match {
       case Identifier(t, c) => {
         val prefix = t.map(s => s"$s.").getOrElse("")
         s"$prefix$c"
       }
       case FunctionCall(f, args) => s"$f(${args.map(print).mkString(", ")})"
-      case Literal => "?"
-      case b: BinaryOperator => binaryOp(b)
+      case Literal(()) => "?"
+      case b: BinaryOperator[Unit] => binaryOp(b)
       case IsNull(e) => s"(${print(e)} IS NULL)"
       case Not(e) => s"(NOT ${print(e)})"
     }
   }
 
-  implicit object GenSelect extends Generator[Select] {
-    def print(s: Select): String = {
+  implicit object GenSelect extends Generator[Select[Unit]] {
+    def print(s: Select[Unit]): String = {
       val clauses = Seq(
         if (s.isDistinct) "DISTINCT" else "",
         s.fields.map {
@@ -43,8 +43,8 @@ object Generator {
     }
   }
 
-  implicit object GenInsert extends Generator[Insert] {
-    def print(a: Insert): String =
+  implicit object GenInsert extends Generator[Insert[Unit]] {
+    def print(a: Insert[Unit]): String =
       s"INSERT INTO ${a.table} (${a.columns.mkString(", ")}) VALUES (${a.values.map(GenExpr.print).mkString(", ")})"
   }
 

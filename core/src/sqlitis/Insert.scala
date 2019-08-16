@@ -19,7 +19,7 @@ object Insert {
     def run[F[_]](implicit build: BuildInsert[T, F, R]):F[R] = build.apply(row)
   }
 
-  type RawSql[A] = Sql.Insert
+  type RawSql[A] = Sql.Insert[Unit]
 
   trait BuildInsert[T[_ <: Ctx], F[_], R] {
     def apply(row: T[Ctx.Inserted]):F[R]
@@ -34,7 +34,7 @@ object Insert {
       table: Table[T],
       insertHList: InsertHList[IH, SH, FH]
     ):BuildInsert[T, RawSql, R] = new BuildInsert[T, RawSql, R] {
-      def apply(row: T[Ctx.Inserted]): Sql.Insert = {
+      def apply(row: T[Ctx.Inserted]): Sql.Insert[Unit] = {
 
         val (names, values) = insertHList(genI.to(row), genS.to(table.schema)).unzip
 
@@ -48,7 +48,7 @@ object Insert {
   }
 
   trait InsertHList[IH <: HList, SH <: HList, FH <: HList] {
-    def apply(ih: IH, sh: SH):List[(String, Expression)]
+    def apply(ih: IH, sh: SH):List[(String, Expression[Unit])]
   }
 
   object InsertHList {
@@ -57,7 +57,7 @@ object Insert {
     ): InsertHList[Option[I] :: IH, S :: SH, HasDefaultMarker :: FH] =
       new InsertHList[Option[I] :: IH, S :: SH, HasDefaultMarker :: FH] {
         def apply(ih: Option[I] :: IH, sh: S :: SH) = {
-          val maybeInsert = ih.head.map(i => sh.head.name -> Literal)
+          val maybeInsert = ih.head.map(i => sh.head.name -> Literal(()))
           val tail = insertTail(ih.tail, sh.tail)
           maybeInsert.map(_ :: tail).getOrElse(tail)
         }
@@ -68,7 +68,7 @@ object Insert {
     ): InsertHList[I :: IH, S :: SH, NoDefaultMarker :: FH] =
       new InsertHList[I :: IH, S :: SH, NoDefaultMarker :: FH] {
         def apply(ih: I :: IH, sh: S :: SH) = {
-          (sh.head.name -> Literal) :: insertTail(ih.tail, sh.tail)
+          (sh.head.name -> Literal(())) :: insertTail(ih.tail, sh.tail)
         }
       }
 
