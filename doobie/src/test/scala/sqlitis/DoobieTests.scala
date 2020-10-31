@@ -5,15 +5,15 @@ import cats.implicits._
 import _root_.doobie._
 import _root_.doobie.implicits._
 import _root_.doobie.h2._
-import cats.effect.internals.{IOAppPlatform, IOContextShift}
 import sqlitis.Query.{Column, Ctx, Ref, Table, Q}
 import sqlitis.doobie.Doobie
 import shapeless._
 import scala.io.Source
+import scala.concurrent.ExecutionContext
 
 object DoobieTests extends TestSuite {
-  protected implicit def contextShift: ContextShift[IO] =
-    IOContextShift.global
+  protected implicit def contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
+
 
   def transactor: Resource[IO, H2Transactor[IO]] =
     for {
@@ -24,7 +24,7 @@ object DoobieTests extends TestSuite {
         "sa",                                   // username
         "",                                     //   password
         ce,                                     // await connection here
-        te                                      // execute JDBC operations here
+        Blocker.liftExecutionContext(te)                                      // execute JDBC operations here
       )
     } yield xa
 

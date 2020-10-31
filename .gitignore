@@ -1,3 +1,8 @@
-/out
+/target
+/core/target
+/doobie/target
+/project/target
+/project/project/target
+/.bsp
 /.idea/
 /.idea_modules/
