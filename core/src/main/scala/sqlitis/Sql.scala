@@ -2,7 +2,7 @@ package sqlitis
 
 object Sql {
 
-  sealed trait Statement
+  sealed trait Statement[+A]
 
   case class Select[+A](
     isDistinct: Boolean = false,
@@ -11,7 +11,7 @@ object Sql {
     where: Option[Expression[A]] = None,
     orderBy: Option[OrderBy[A]] = None,
     limit: Option[Int] = None
-  ) extends Statement
+  ) extends Statement[A]
 
   sealed trait Field[+A]
   case class ExpressionField[+A](e: Expression[A], as: Option[String]) extends Field[A]
@@ -33,7 +33,7 @@ object Sql {
   case class FunctionCall[+A](function: String, args: List[Expression[A]]) extends Expression[A]
   case class Literal[A](a: A) extends Expression[A]
 
-  abstract class BinaryOperator[A](val name: String) extends Expression[A] {
+  abstract class BinaryOperator[+A](val name: String) extends Expression[A] {
     def a: Expression[A]
     def b: Expression[A]
   }
@@ -57,9 +57,9 @@ object Sql {
   case class OrderBy[+A](e: Expression[A], asc: Boolean)
 
 
-  case class Insert[A](
+  case class Insert[+A](
     table: String,
     columns: List[String],
     values: List[Expression[A]]
-  )
+  ) extends Statement[A]
 }

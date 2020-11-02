@@ -84,7 +84,7 @@ object QueryTests extends TestSuite {
       )
       assert(sql == expected)
 
-      println(Generator.GenSelect.print(o.sql))
+//      println(Generator.GenSelect.print(o.sql))
 
     }
 
@@ -106,7 +106,7 @@ object QueryTests extends TestSuite {
 
       assert(sql == expected)
 
-      println(Generator.GenSelect.print(sql))
+//      println(Generator.GenSelect.print(sql))
 
     }
 

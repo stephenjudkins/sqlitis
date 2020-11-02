@@ -19,7 +19,7 @@ object Parser {
 
   private val identifier:Parser[Identifier] =
     ((idToken <~ char('.')) ~ idToken).map { case (r, i) => Identifier(Some(r), i) } |
-    idToken.map(Identifier(None, _))
+    idToken.map(Identifier(None, _)).filter(_.name.toLowerCase != "where")
 
   private val not:Parser[Expression[Unit]] = (kw("NOT") ~> expr).map(Not(_))
 
