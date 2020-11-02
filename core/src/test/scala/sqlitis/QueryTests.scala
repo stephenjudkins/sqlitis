@@ -52,7 +52,7 @@ object QueryTests extends TestSuite {
 
       val q = for {
         a1 <- Query[TableA]
-        a2 <- Query[TableA]
+        a2 <- Query[TableA] if a1.a === a2.a
       } yield (a1.a, a2.b)
 
       implicitly[q.type <:< Q[(Ref[Int], Ref[String])]]
@@ -64,7 +64,8 @@ object QueryTests extends TestSuite {
       val sql = o.sql
       val expected = Select(
         fields = List(ExpressionField(Identifier(Some("foo"), "a"), None), ExpressionField(Identifier(Some("foo_1"), "b"), None)),
-        from =  List(TableName("foo", None), TableName("foo", Some("foo_1")))
+        from = List(TableName("foo", None), TableName("foo", Some("foo_1"))),
+        where = Some(Equals(Identifier(Some("foo"), "a"), Identifier(Some("foo_1"), "a")))
       )
       assert(sql == expected)
 
@@ -109,8 +110,6 @@ object QueryTests extends TestSuite {
 //      println(Generator.GenSelect.print(sql))
 
     }
-
-
 
   }
 
