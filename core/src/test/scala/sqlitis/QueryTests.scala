@@ -1,12 +1,14 @@
 package sqlitis
 
 import shapeless.Id
-import sqlitis.Query._
+import sqlitis.Query.{Ref => _, _}
 import sqlitis.Sql._
 import utest._
 
 object QueryTests extends TestSuite {
 
+  type Ref[A] = sqlitis.Query.Ref[Unit, A]
+  def Ref[A](e: Expression[Unit]) = sqlitis.Query.Ref[Unit, A](e)
 
   case class TableA[C <: Ctx](
     a: C#NoDefault[Int],
@@ -40,12 +42,29 @@ object QueryTests extends TestSuite {
 
   def tests: Tests = Tests {
     'Querify - {
-      val q = Querify("foo_42", TableA.schema)
+      val q = Querify("foo_42", TableA.schema)(Querify.instance)
 
-      assert(q == TableA[Ctx.Queried](
+      assert(q == TableA[Ctx.Queried[Unit]](
         a = Ref[Int](Identifier(Some("foo_42"), "a")),
         b = Ref[String](Identifier(Some("foo_42"), "b"))
       ))
+    }
+
+    'queryRef - {
+      val q = Query[TableA].map(_.a)
+
+      val o = q.run
+      val sql = o.sql
+
+      implicitly[o.type <:< SelectResult[Unit, Int]]
+
+      val expected = Select(
+        fields = List(ExpressionField(Identifier(Some("foo"), "a"), None)),
+        from = List(TableName("foo", None))
+      )
+
+      assert(sql == expected)
+
     }
 
     'queryTuple - {
@@ -55,11 +74,11 @@ object QueryTests extends TestSuite {
         a2 <- Query[TableA] if a1.a === a2.a
       } yield (a1.a, a2.b)
 
-      implicitly[q.type <:< Q[(Ref[Int], Ref[String])]]
+      implicitly[q.type <:< Q[Unit, (Ref[Int], Ref[String])]]
 
       val o = q.run
 
-      implicitly[o.type <:< SelectResult[(Int, String)]]
+      implicitly[o.type <:< SelectResult[Unit, (Int, String)]]
 
       val sql = o.sql
       val expected = Select(
@@ -76,7 +95,7 @@ object QueryTests extends TestSuite {
     'queryTable - {
       val o = Query[TableA].run
 
-      implicitly[o.type <:< SelectResult[TableA[Ctx.Concrete]]]
+      implicitly[o.type <:< SelectResult[Unit, TableA[Ctx.Concrete]]]
 
       val sql = o.sql
       val expected = Select(

@@ -65,7 +65,7 @@ object DoobieTests extends TestSuite {
     )
   }
 
-  val query:Q[(Ref[String], Ref[String])] = for {
+  val query:Q[Unit, (Ref[Unit, String], Ref[Unit, String])] = for {
     person <- Query[Person]
     pet <- Query[Pet] if person.id === pet.id
   } yield (person.name, pet.name)

@@ -17,7 +17,8 @@ lazy val core = (project in file("core"))
       "com.chuusai" %% "shapeless" % "2.3.3",
       "com.lihaoyi" %% "utest" % "0.7.5" % Test
     ),
-    ourOptions
+    ourOptions,
+    addCompilerPlugin("org.typelevel" %% "kind-projector" % "0.11.0" cross CrossVersion.full)
   )
 
 lazy val doobie = (project in file("doobie"))
