@@ -1,9 +1,9 @@
 package sqlitis
 
-import shapeless.Id
 import sqlitis.Query.{Ref => _, _}
 import sqlitis.Sql._
 import utest._
+
 
 object QueryTests extends TestSuite {
 
@@ -67,6 +67,26 @@ object QueryTests extends TestSuite {
 
     }
 
+    'queryHList - {
+      import shapeless._
+      val q = Query[TableA].map(t => t.a :: t.b :: HNil)
+
+      val o = q.run
+
+      implicitly[o.type <:< SelectResult[Unit, Int :: String :: HNil]]
+
+      val expected = Select(
+        fields = List(
+          ExpressionField(Identifier(Some("foo"), "a"), None),
+          ExpressionField(Identifier(Some("foo"), "b"), None)
+        ),
+        from = List(TableName("foo", None))
+      )
+
+      assert(o.sql == expected)
+
+    }
+
     'queryTuple - {
 
       val q = for {
@@ -88,16 +108,40 @@ object QueryTests extends TestSuite {
       )
       assert(sql == expected)
 
-      println(Generator.GenSelect.print(o.sql))
+//      println(Generator.GenSelect.print(o.sql))
+    }
+
+    'queryNestedTuple - {
+      val q = Query[TableA].map(t => ((t.a, t.b), t.b))
+
+      implicitly[q.type <:< Q[Unit, ((Ref[Int], Ref[String]), Ref[String])]]
+
+      val o = q.run
+
+      implicitly[o.type <:< SelectResult[Unit, ((Int, String), String)]]
+
+      val sql = o.sql
+
+      val expected = Select(
+        fields = List(
+          ExpressionField(Identifier(Some("foo"), "a"), None),
+          ExpressionField(Identifier(Some("foo"), "b"), None),
+          ExpressionField(Identifier(Some("foo"), "b"), None)
+        ),
+        from = List(TableName("foo", None))
+      )
+      assert(sql == expected)
+
     }
 
 
     'queryTable - {
       val o = Query[TableA].run
 
+      val sql = o.sql
+
       implicitly[o.type <:< SelectResult[Unit, TableA[Ctx.Concrete]]]
 
-      val sql = o.sql
       val expected = Select(
         fields = List(ExpressionField(Identifier(Some("foo"), "a"), None), ExpressionField(Identifier(Some("foo"), "b"), None)),
         from =  List(TableName("foo", None))
@@ -107,7 +151,6 @@ object QueryTests extends TestSuite {
 //      println(Generator.GenSelect.print(o.sql))
 
     }
-
 
     'filter - {
 

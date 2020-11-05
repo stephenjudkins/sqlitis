@@ -113,39 +113,49 @@ object Query {
 
 
 
-  trait ResultExtractor[I, O, X] {
-    def apply(a: I):List[Field[X]]
+  trait ResultExtractor[I, +O, X] {
+    def apply(accum: List[Field[X]], a: I):List[Field[X]]
   }
 
   object ResultExtractor {
 
-    private def toFields[X](l: List[Ref[X, _]]) = l.map {
-      case Ref(expr) => ExpressionField[X](expr, None)
+
+    implicit def hnilInstance[X]:ResultExtractor[HNil, HNil, X] = new ResultExtractor[HNil, HNil, X] {
+      def apply(accum: List[Field[X]], a: HNil): List[Field[X]] = accum
+    }
+
+    implicit def hConsInstance[I, O, HI <: HList, HO <: HList, X](
+      implicit h: ResultExtractor[I, O, X],
+      tail: ResultExtractor[HI, HO, X]
+    ): ResultExtractor[I :: HI,  O :: HO, X] =
+      new ResultExtractor[I :: HI,  O :: HO, X] {
+        def apply(accum: List[Field[X]], a: I :: HI): List[Field[X]] = h.apply(tail(accum, a.tail), a.head)
+      }
+
+    implicit def refInstance[A, X]:ResultExtractor[Ref[X, A], A, X] = new ResultExtractor[Ref[X, A], A, X]{
+      def apply(accum: List[Field[X]], a: Ref[X, A]): List[Field[X]] = ExpressionField(a.expr, None) :: accum
     }
 
     implicit def tableInstance[T[_ <: Ctx], HI <: HList, HO <: HList, X](
       implicit
-      g1: Generic.Aux[T[Queried[X]], HI],
-      comapped: Comapped.Aux[HI, Ref[X, *], HO],
-      toList: ToTraversable.Aux[HI, List, Ref[X, _]]
+      from: Generic.Aux[T[Queried[X]], HI],
+      to: Generic.Aux[T[Concrete], HO],
+      gen: ResultExtractor[HI, HO, X]
     ):ResultExtractor[T[Queried[X]], T[Concrete], X] = new ResultExtractor[T[Queried[X]], T[Concrete], X] {
-      def apply(a: T[Queried[X]]): List[Field[X]] = toFields(toList(g1.to(a)))
+      def apply(accum: List[Field[X]], a: T[Queried[X]]): List[Field[X]] = gen(accum, from.to(a))
     }
 
-    implicit def tupleInstance[I, HI <: HList, X, HO <: HList, O](
+
+    implicit def tupleInstance[I, HI <: HList, HO <: HList, O, X](
       implicit
-      g1: Generic.Aux[I, HI],
-      tIn: Tupler.Aux[HI, I],
-      comapped: Comapped.Aux[HI, Ref[X, *], HO],
-      tOut: Tupler.Aux[HO, O],
-      toList: ToTraversable.Aux[HI, List, Ref[X, _]]
+      from: Generic.Aux[I, HI],
+      gen: ResultExtractor[HI, HO, X],
+      to: Tupler.Aux[HO, O],
+      isTuple: Tupler.Aux[HI, I],
     ):ResultExtractor[I, O, X] = new ResultExtractor[I, O, X] {
-      def apply(a: I): List[Field[X]] = toFields(toList(g1.to(a)))
+      def apply(accum: List[Field[X]], a: I): List[Field[X]] = gen(accum, from.to(a))
     }
 
-    implicit def refInstance[A, X]:ResultExtractor[Ref[X, A], A, X] = new ResultExtractor[Ref[X, A], A, X]{
-      def apply(a: Ref[X, A]): List[Field[X]] = toFields(List(a))
-    }
   }
 
 
@@ -155,7 +165,7 @@ object Query {
       val (result, queryState) = apply(QueryState(Map.empty, None))
 
       val select = Select(
-        fields = resultExtractor(result),
+        fields = resultExtractor(Nil, result),
         from = queryState.relations.toList.map { case (alias, t) => TableName(t, if (alias == t) None else Some(alias)) },
         where = queryState.filter
       )
