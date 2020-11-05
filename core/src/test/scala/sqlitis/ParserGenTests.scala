@@ -32,7 +32,7 @@ object ParserGenTests extends TestSuite {
   }
 
   def tests: Tests = Tests {
-    'captures - {
+    "captures" - {
       testSqlWithCaptures(
         "SELECT x FROM t WHERE t.a = ? AND t.b = ? AND t.c = ?",
         Select[Int](
@@ -49,19 +49,19 @@ object ParserGenTests extends TestSuite {
         List(1, 2, 3)
       )
     }
-    'identifier - {
+    "identifier" - {
       testSql[Expression]("a", Identifier("a"))
       testSql[Expression]("x.y", Identifier(Some("x"), "y"))
       testSql[Expression]("abcd", Identifier("abcd"))
       testSql[Expression]("A42", Identifier("A42"))
     }
-    'AND - {
+    "AND" - {
       testSql[Expression]("a AND b ", And(Identifier("a"), Identifier("b")))
     }
-    'leftAssociativity - {
+    "leftAssociativity" - {
       testSql[Expression]("a AND b AND c", And(And(Identifier("a"), Identifier("b")), Identifier("c")))
     }
-    'rightAssociativity - {
+    "rightAssociativity" - {
       testSql[Expression]("a = b = c", Equals(Identifier("a"), Equals(Identifier("b"), Identifier("c"))))
     }
     "precedence" - {
@@ -76,10 +76,10 @@ object ParserGenTests extends TestSuite {
     "* +" - {
       testSql[Expression]("a* b + c", Add(Mul(Identifier("a"), Identifier("b")), Identifier("c")))
     }
-    'NOT - {
+    "NOT" - {
       testSql[Expression]("NOT x", Not(Identifier("x")))
     }
-    'SELECT - {
+    "SELECT" - {
       testSql[Select](
         "SELECT spam.foo AS zomg, eggs.bar AS wtf FROM t1 spam, t2 eggs WHERE green = red ORDER BY bar ASC LIMIT 420",
         Select(
@@ -91,7 +91,7 @@ object ParserGenTests extends TestSuite {
         )
       )
     }
-    'INSERT - {
+    "INSERT" - {
       testSql[Insert](
         "INSERT INTO foo (a,b,c) VALUES (x,y,z)",
         Sql.Insert(

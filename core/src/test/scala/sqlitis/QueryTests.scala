@@ -41,7 +41,7 @@ object QueryTests extends TestSuite {
 
 
   def tests: Tests = Tests {
-    'Querify - {
+    "Querify" - {
       val q = Querify("foo_42", TableA.schema)(Querify.instance)
 
       assert(q == TableA[Ctx.Queried[Unit]](
@@ -50,7 +50,7 @@ object QueryTests extends TestSuite {
       ))
     }
 
-    'queryRef - {
+    "queryRef" - {
       val q = Query[TableA].map(_.a)
 
       val o = q.run
@@ -67,7 +67,7 @@ object QueryTests extends TestSuite {
 
     }
 
-    'queryHList - {
+    "queryHList" - {
       import shapeless._
       val q = Query[TableA].map(t => t.a :: t.b :: HNil)
 
@@ -87,7 +87,7 @@ object QueryTests extends TestSuite {
 
     }
 
-    'queryTuple - {
+    "queryTuple" - {
 
       val q = for {
         a1 <- Query[TableA]
@@ -111,7 +111,7 @@ object QueryTests extends TestSuite {
 //      println(Generator.GenSelect.print(o.sql))
     }
 
-    'queryNestedTuple - {
+    "queryNestedTuple" - {
       val q = Query[TableA].map(t => ((t.a, t.b), t.b))
 
       implicitly[q.type <:< Q[Unit, ((Ref[Int], Ref[String]), Ref[String])]]
@@ -135,7 +135,7 @@ object QueryTests extends TestSuite {
     }
 
 
-    'queryTable - {
+    "queryTable" - {
       val o = Query[TableA].run
 
       val sql = o.sql
@@ -152,7 +152,7 @@ object QueryTests extends TestSuite {
 
     }
 
-    'filter - {
+    "filter" - {
 
       val q = for {
         ta <- Query[TableA]

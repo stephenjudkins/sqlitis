@@ -4,10 +4,15 @@ Global / onChangedBuildSource := ReloadOnSourceChanges
 
 Global / testFrameworks += new TestFramework("utest.runner.Framework")
 
+Global / scalaVersion := "2.13.3"
+
 val ourOptions = scalacOptions ~= (_.filterNot(o => Set(
   "-Ywarn-unused:imports",
+  "-Wunused:imports",
   "-Ywarn-unused:params",
-  "-Ywarn-unused:implicits"
+  "-Wunused:params",
+  "-Ywarn-unused:implicits",
+  "-Wunused:implicits"
 )(o)))
 
 lazy val core = (project in file("core"))

@@ -2,7 +2,7 @@ package sqlitis
 import utest._
 import cats.effect._
 import cats.implicits._
-import _root_.doobie._
+import _root_.doobie.{Query => _, _}
 import _root_.doobie.implicits._
 import _root_.doobie.h2._
 import sqlitis.Query.{Column, Ctx, Ref, Table, Q}
@@ -72,7 +72,7 @@ object DoobieTests extends TestSuite {
 
 
   def tests = Tests {
-    'basicQuery - {
+    "basicQuery" - {
 
       val io = transactor.use { xa =>
         for {

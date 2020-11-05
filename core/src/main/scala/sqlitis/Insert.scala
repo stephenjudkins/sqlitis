@@ -57,7 +57,7 @@ object Insert {
     ): InsertHList[Option[I] :: IH, S :: SH, HasDefaultMarker :: FH] =
       new InsertHList[Option[I] :: IH, S :: SH, HasDefaultMarker :: FH] {
         def apply(ih: Option[I] :: IH, sh: S :: SH) = {
-          val maybeInsert = ih.head.map(i => sh.head.name -> Literal(()))
+          val maybeInsert = ih.head.map(_ => sh.head.name -> Literal(()))
           val tail = insertTail(ih.tail, sh.tail)
           maybeInsert.map(_ :: tail).getOrElse(tail)
         }

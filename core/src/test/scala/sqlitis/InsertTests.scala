@@ -24,7 +24,7 @@ object InsertTests extends TestSuite {
 
 
   def tests = Tests {
-    'insert - {
+    "insert" - {
       val sql = Insert.value(TableA[Ctx.Inserted](
         id = Some(42),
         name = "foobar"
