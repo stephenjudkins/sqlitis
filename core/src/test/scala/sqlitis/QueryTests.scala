@@ -4,15 +4,14 @@ import sqlitis.Query.{Ref => _, _}
 import sqlitis.Sql._
 import utest._
 
-
 object QueryTests extends TestSuite {
 
   type Ref[A] = sqlitis.Query.Ref[Unit, A]
   def Ref[A](e: Expression[Unit]) = sqlitis.Query.Ref[Unit, A](e)
 
   case class TableA[C <: Ctx](
-    a: C#NoDefault[Int],
-    b: C#NoDefault[String]
+      a: C#NoDefault[Int],
+      b: C#NoDefault[String]
   )
   implicit object TableA extends Table[TableA] {
     val schema = TableA[Ctx.Schema](
@@ -23,10 +22,9 @@ object QueryTests extends TestSuite {
     val name = "foo"
   }
 
-
   case class TableB[C <: Ctx](
-    x: C#NoDefault[Int],
-    y: C#NoDefault[String]
+      x: C#NoDefault[Int],
+      y: C#NoDefault[String]
   )
 
   implicit object TableB extends Table[TableB] {
@@ -38,142 +36,150 @@ object QueryTests extends TestSuite {
     val name = "bar"
   }
 
+  def tests: Tests =
+    Tests {
+      "Querify" - {
+        val q = Querify("foo_42", TableA.schema)(Querify.instance)
 
+        assert(
+          q == TableA[Ctx.Queried[Unit]](
+            a = Ref[Int](Identifier(Some("foo_42"), "a")),
+            b = Ref[String](Identifier(Some("foo_42"), "b"))
+          )
+        )
+      }
 
-  def tests: Tests = Tests {
-    "Querify" - {
-      val q = Querify("foo_42", TableA.schema)(Querify.instance)
+      "queryRef" - {
+        val q = Query[TableA].map(_.a)
 
-      assert(q == TableA[Ctx.Queried[Unit]](
-        a = Ref[Int](Identifier(Some("foo_42"), "a")),
-        b = Ref[String](Identifier(Some("foo_42"), "b"))
-      ))
-    }
+        val o   = q.run
+        val sql = o.sql
 
-    "queryRef" - {
-      val q = Query[TableA].map(_.a)
+        implicitly[o.type <:< SelectResult[Unit, Int]]
 
-      val o = q.run
-      val sql = o.sql
+        val expected = Select(
+          fields = List(ExpressionField(Identifier(Some("foo"), "a"), None)),
+          from = List(TableName("foo", None))
+        )
 
-      implicitly[o.type <:< SelectResult[Unit, Int]]
+        assert(sql == expected)
 
-      val expected = Select(
-        fields = List(ExpressionField(Identifier(Some("foo"), "a"), None)),
-        from = List(TableName("foo", None))
-      )
+      }
 
-      assert(sql == expected)
+      "queryHList" - {
+        import shapeless._
+        val q = Query[TableA].map(t => t.a :: t.b :: HNil)
 
-    }
+        val o = q.run
 
-    "queryHList" - {
-      import shapeless._
-      val q = Query[TableA].map(t => t.a :: t.b :: HNil)
+        implicitly[o.type <:< SelectResult[Unit, Int :: String :: HNil]]
 
-      val o = q.run
+        val expected = Select(
+          fields = List(
+            ExpressionField(Identifier(Some("foo"), "a"), None),
+            ExpressionField(Identifier(Some("foo"), "b"), None)
+          ),
+          from = List(TableName("foo", None))
+        )
 
-      implicitly[o.type <:< SelectResult[Unit, Int :: String :: HNil]]
+        assert(o.sql == expected)
 
-      val expected = Select(
-        fields = List(
-          ExpressionField(Identifier(Some("foo"), "a"), None),
-          ExpressionField(Identifier(Some("foo"), "b"), None)
-        ),
-        from = List(TableName("foo", None))
-      )
+      }
 
-      assert(o.sql == expected)
+      "queryTuple" - {
 
-    }
+        val q = for {
+          a1 <- Query[TableA]
+          a2 <- Query[TableA] if a1.a === a2.a
+        } yield (a1.a, a2.b)
 
-    "queryTuple" - {
+        implicitly[q.type <:< Q[Unit, (Ref[Int], Ref[String])]]
 
-      val q = for {
-        a1 <- Query[TableA]
-        a2 <- Query[TableA] if a1.a === a2.a
-      } yield (a1.a, a2.b)
+        val o = q.run
 
-      implicitly[q.type <:< Q[Unit, (Ref[Int], Ref[String])]]
+        implicitly[o.type <:< SelectResult[Unit, (Int, String)]]
 
-      val o = q.run
-
-      implicitly[o.type <:< SelectResult[Unit, (Int, String)]]
-
-      val sql = o.sql
-      val expected = Select(
-        fields = List(ExpressionField(Identifier(Some("foo"), "a"), None), ExpressionField(Identifier(Some("foo_1"), "b"), None)),
-        from = List(TableName("foo", None), TableName("foo", Some("foo_1"))),
-        where = Some(Equals(Identifier(Some("foo"), "a"), Identifier(Some("foo_1"), "a")))
-      )
-      assert(sql == expected)
-
-//      println(Generator.GenSelect.print(o.sql))
-    }
-
-    "queryNestedTuple" - {
-      val q = Query[TableA].map(t => ((t.a, t.b), t.b))
-
-      implicitly[q.type <:< Q[Unit, ((Ref[Int], Ref[String]), Ref[String])]]
-
-      val o = q.run
-
-      implicitly[o.type <:< SelectResult[Unit, ((Int, String), String)]]
-
-      val sql = o.sql
-
-      val expected = Select(
-        fields = List(
-          ExpressionField(Identifier(Some("foo"), "a"), None),
-          ExpressionField(Identifier(Some("foo"), "b"), None),
-          ExpressionField(Identifier(Some("foo"), "b"), None)
-        ),
-        from = List(TableName("foo", None))
-      )
-      assert(sql == expected)
-
-    }
-
-
-    "queryTable" - {
-      val o = Query[TableA].run
-
-      val sql = o.sql
-
-      implicitly[o.type <:< SelectResult[Unit, TableA[Ctx.Concrete]]]
-
-      val expected = Select(
-        fields = List(ExpressionField(Identifier(Some("foo"), "a"), None), ExpressionField(Identifier(Some("foo"), "b"), None)),
-        from =  List(TableName("foo", None))
-      )
-      assert(sql == expected)
+        val sql = o.sql
+        val expected = Select(
+          fields = List(
+            ExpressionField(Identifier(Some("foo"), "a"), None),
+            ExpressionField(Identifier(Some("foo_1"), "b"), None)
+          ),
+          from = List(TableName("foo", None), TableName("foo", Some("foo_1"))),
+          where = Some(Equals(Identifier(Some("foo"), "a"), Identifier(Some("foo_1"), "a")))
+        )
+        assert(sql == expected)
 
 //      println(Generator.GenSelect.print(o.sql))
+      }
 
-    }
+      "queryNestedTuple" - {
+        val q = Query[TableA].map(t => ((t.a, t.b), t.b))
 
-    "filter" - {
+        implicitly[q.type <:< Q[Unit, ((Ref[Int], Ref[String]), Ref[String])]]
 
-      val q = for {
-        ta <- Query[TableA]
-        tb <- Query[TableB] if ta.a === tb.x
-      } yield (ta.b, tb.y)
+        val o = q.run
 
-      val sql = q.run.sql
+        implicitly[o.type <:< SelectResult[Unit, ((Int, String), String)]]
 
-      val expected = Select(
-        fields = List(ExpressionField(Identifier(Some("foo"), "b"), None), ExpressionField(Identifier(Some("bar"), "y"), None)),
-        from =  List(TableName("foo", None), TableName("bar", None)),
-        where = Some(Equals(Identifier(Some("foo"), "a"), Identifier(Some("bar"), "x")))
-      )
+        val sql = o.sql
 
-      assert(sql == expected)
+        val expected = Select(
+          fields = List(
+            ExpressionField(Identifier(Some("foo"), "a"), None),
+            ExpressionField(Identifier(Some("foo"), "b"), None),
+            ExpressionField(Identifier(Some("foo"), "b"), None)
+          ),
+          from = List(TableName("foo", None))
+        )
+        assert(sql == expected)
+
+      }
+
+      "queryTable" - {
+        val o = Query[TableA].run
+
+        val sql = o.sql
+
+        implicitly[o.type <:< SelectResult[Unit, TableA[Ctx.Concrete]]]
+
+        val expected = Select(
+          fields = List(
+            ExpressionField(Identifier(Some("foo"), "a"), None),
+            ExpressionField(Identifier(Some("foo"), "b"), None)
+          ),
+          from = List(TableName("foo", None))
+        )
+        assert(sql == expected)
+
+//      println(Generator.GenSelect.print(o.sql))
+
+      }
+
+      "filter" - {
+
+        val q = for {
+          ta <- Query[TableA]
+          tb <- Query[TableB] if ta.a === tb.x
+        } yield (ta.b, tb.y)
+
+        val sql = q.run.sql
+
+        val expected = Select(
+          fields = List(
+            ExpressionField(Identifier(Some("foo"), "b"), None),
+            ExpressionField(Identifier(Some("bar"), "y"), None)
+          ),
+          from = List(TableName("foo", None), TableName("bar", None)),
+          where = Some(Equals(Identifier(Some("foo"), "a"), Identifier(Some("bar"), "x")))
+        )
+
+        assert(sql == expected)
 
 //      println(Generator.GenSelect.print(sql))
 
+      }
+
     }
-
-  }
-
 
 }

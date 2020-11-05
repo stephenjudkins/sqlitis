@@ -7,12 +7,12 @@ import sqlitis.Generator
 import sqlitis.Query._
 
 object Doobie {
-  def select[A, O](q: Q[Unit, A])(
-    implicit
-    resultExtractor: ResultExtractor[A, O, Unit],
-    read: Read[O]
-  ):ConnectionIO[List[O]] = Query[Unit, O](
-    Generator.GenSelect.print(q.run(resultExtractor).sql)
-  ).to[List](())
+  def select[A, O](q: Q[Unit, A])(implicit
+      resultExtractor: ResultExtractor[A, O, Unit],
+      read: Read[O]
+  ): ConnectionIO[List[O]] =
+    Query[Unit, O](
+      Generator.GenSelect.print(q.run(resultExtractor).sql)
+    ).to[List](())
 
 }

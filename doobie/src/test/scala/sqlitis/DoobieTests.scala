@@ -14,29 +14,25 @@ import scala.concurrent.ExecutionContext
 object DoobieTests extends TestSuite {
   protected implicit def contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
 
-
   def transactor: Resource[IO, H2Transactor[IO]] =
     for {
       ce <- ExecutionContexts.fixedThreadPool[IO](32) // our connect EC
-      te <- ExecutionContexts.cachedThreadPool[IO]    // our transaction EC
+      te <- ExecutionContexts.cachedThreadPool[IO] // our transaction EC
       xa <- H2Transactor.newH2Transactor[IO](
         "jdbc:h2:mem:test;DB_CLOSE_DELAY=-1", // connect URL
-        "sa",                                   // username
-        "",                                     //   password
-        ce,                                     // await connection here
-        Blocker.liftExecutionContext(te)                                      // execute JDBC operations here
+        "sa",                                 // username
+        "",                                   //   password
+        ce,                                   // await connection here
+        Blocker.liftExecutionContext(te)      // execute JDBC operations here
       )
     } yield xa
 
-
-
   def schema = Source.fromInputStream(getClass.getClassLoader.getResourceAsStream("test.sql")).mkString
 
-
   case class Person[C <: Ctx](
-    id: C#HasDefault[Int],
-    name: C#NoDefault[String],
-    age: C#NoDefault[Int]
+      id: C#HasDefault[Int],
+      name: C#NoDefault[String],
+      age: C#NoDefault[Int]
   )
 
   implicit object Person extends Table[Person] {
@@ -49,10 +45,10 @@ object DoobieTests extends TestSuite {
   }
 
   case class Pet[C <: Ctx](
-    id: C#HasDefault[Int],
-    name: C#NoDefault[String],
-    age: C#NoDefault[Int],
-    personId: C#NoDefault[Int]
+      id: C#HasDefault[Int],
+      name: C#NoDefault[String],
+      age: C#NoDefault[Int],
+      personId: C#NoDefault[Int]
   )
 
   implicit object Pet extends Table[Pet] {
@@ -65,26 +61,28 @@ object DoobieTests extends TestSuite {
     )
   }
 
-  val query:Q[Unit, (Ref[Unit, String], Ref[Unit, String])] = for {
+  val query: Q[Unit, (Ref[Unit, String], Ref[Unit, String])] = for {
     person <- Query[Person]
-    pet <- Query[Pet] if person.id === pet.id
+    pet    <- Query[Pet] if person.id === pet.id
   } yield (person.name, pet.name)
 
+  def tests =
+    Tests {
+      "basicQuery" - {
 
-  def tests = Tests {
-    "basicQuery" - {
+        val io = transactor.use { xa =>
+          for {
+            _ <- _root_.doobie.Update(schema).run(()).transact(xa)
+            r <- Doobie.select(query).transact(xa)
+          } yield r
+        }
 
-      val io = transactor.use { xa =>
-        for {
-          _ <- _root_.doobie.Update(schema).run(()).transact(xa)
-          r <- Doobie.select(query).transact(xa)
-        } yield r
+        assert(
+          io.unsafeRunSync() == List(
+            ("Charlie Brown", "Snoopy"),
+            ("Calvin", "Hobbes")
+          )
+        )
       }
-
-      assert(io.unsafeRunSync() == List(
-        ("Charlie Brown", "Snoopy"),
-        ("Calvin", "Hobbes")
-      ))
     }
-  }
 }
