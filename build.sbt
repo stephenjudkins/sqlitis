@@ -18,7 +18,7 @@ val ourOptions = scalacOptions ~= (_.filterNot(o => Set(
 lazy val core = (project in file("core"))
   .settings(
     libraryDependencies ++= Seq(
-      "org.tpolecat" %% "atto-core" % "0.8.0",
+      "org.typelevel" %% "cats-parse" % "0.0.1",
       "com.chuusai" %% "shapeless" % "2.3.3",
       "com.lihaoyi" %% "utest" % "0.7.5" % Test
     ),

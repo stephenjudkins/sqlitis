@@ -1,69 +1,55 @@
 package sqlitis
 
 import Parser._
-import atto.{Atto, Parser => AttoParser}
-import Atto._
-import sqlitis.Generator.SqlHelper
 import sqlitis.Sql._
 import utest._
+import cats.parse.{Parser => CatsParser}
 
 object ParserGenTests extends TestSuite {
 
-  def testSql[A[_]](sql: String, ast: A[Unit])(implicit parser: AttoParser[A[Unit]], generator: Generator[A]) = {
-    val parsed         = parser.parseOnly(sql).either
+  def testSql[A[_]](sql: String, ast: A[Unit])(implicit parser: CatsParser[A[Unit]], generator: Generator[A]) = {
+    val parsed         = parser.parseAll(sql)
     val (_, generated) = generator.generate(ast)
 
+    parsed match {
+      case Right(actual) => assert(actual == ast)
+      case Left(error) => {
+        sys.error(s"Failed after ${sql.take(error.failedAtOffset)}; offsets = ${error.offsets.toList.mkString(",")}")
+      }
+    }
     assert(parsed == Right(ast))
-    val parsedAgain = parser.parseOnly(generated).either
+    val parsedAgain = parser.parseAll(generated)
     assert(parsedAgain == Right(ast))
   }
 
   // TODO: shapeless bullshit to make A[C] into A[Unit]
   def testSqlWithCaptures[A[_], C](sql: String, ast: A[C], captures: List[C])(implicit
-      parser: AttoParser[A[Unit]],
+      parser: CatsParser[A[Unit]],
       generator: Generator[A]
   ) = {
-    val parsed                      = parser.parseOnly(sql).either
+    val parsed                      = parser.parseAll(sql)
     val (actualCaptures, generated) = generator.generate(ast)
-
     assert(captures == actualCaptures.reverse)
-
-    val parsedAgain = parser.parseOnly(generated).either
-
+    val parsedAgain = parser.parseAll(generated)
     assert(parsed == parsedAgain)
 
   }
 
   def tests: Tests =
     Tests {
-      "captures" - {
-        testSqlWithCaptures(
-          "SELECT x FROM t WHERE t.a = ? AND t.b = ? AND t.c = ?",
-          Select[Int](
-            fields = List(ExpressionField(Identifier("x"), None)),
-            from = List(TableName("t", None)),
-            where = Some(
-              And(
-                And(
-                  Equals(Identifier(Some("t"), "a"), Literal(1)),
-                  Equals(Identifier(Some("t"), "b"), Literal(2))
-                ),
-                Equals(Identifier(Some("t"), "c"), Literal(3))
-              )
-            )
-          ),
-          List(1, 2, 3)
-        )
-      }
       "identifier" - {
         testSql[Expression]("a", Identifier("a"))
         testSql[Expression]("x.y", Identifier(Some("x"), "y"))
         testSql[Expression]("abcd", Identifier("abcd"))
         testSql[Expression]("A42", Identifier("A42"))
+        testSql[Expression]("A_B", Identifier("A_B"))
       }
       "AND" - {
-        testSql[Expression]("a AND b ", And(Identifier("a"), Identifier("b")))
+        testSql[Expression]("a AND b", And(Identifier("a"), Identifier("b")))
       }
+//      "caseInsensitive" - {
+//        testSql[Expression]("a and b", And(Identifier("a"), Identifier("b")))
+//      }
       "leftAssociativity" - {
         testSql[Expression]("a AND b AND c", And(And(Identifier("a"), Identifier("b")), Identifier("c")))
       }
@@ -111,6 +97,25 @@ object ParserGenTests extends TestSuite {
             columns = List("a", "b", "c"),
             values = List(Identifier("x"), Identifier("y"), Identifier("z"))
           )
+        )
+      }
+      "captures" - {
+        testSqlWithCaptures(
+          "SELECT x FROM t WHERE t.a = ? AND t.b = ? AND t.c = ?",
+          Select[Int](
+            fields = List(ExpressionField(Identifier("x"), None)),
+            from = List(TableName("t", None)),
+            where = Some(
+              And(
+                And(
+                  Equals(Identifier(Some("t"), "a"), Literal(1)),
+                  Equals(Identifier(Some("t"), "b"), Literal(2))
+                ),
+                Equals(Identifier(Some("t"), "c"), Literal(3))
+              )
+            )
+          ),
+          List(1, 2, 3)
         )
       }
 
