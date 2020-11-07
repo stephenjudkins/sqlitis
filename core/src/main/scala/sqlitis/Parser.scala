@@ -131,8 +131,8 @@ object Parser {
         }
     )
 
-  implicit val select: P[Select[Unit]] = (
-    kw("SELECT") *> (kw("DISTINCT")).?.map(_.isDefined),
+  implicit val select: Parser1[Select[Unit]] = kw("SELECT") *> (
+    (kw("DISTINCT")).?.map(_.isDefined),
     repSep(field, 0, comma),
     optKw("FROM", repSep(from, 1, comma)).map(_.getOrElse(Nil)),
     optKw("WHERE", expr <* maybeWhitespace),
@@ -149,8 +149,8 @@ object Parser {
     )
   }
 
-  implicit val insert: P[Insert[Unit]] = (
-    kw("INSERT") *> kw("INTO") *> token(idToken),
+  implicit val insert: Parser1[Insert[Unit]] = kw("INSERT") *> (
+    kw("INTO") *> token(idToken),
     parens(rep1Sep(token(idToken), 1, comma)),
     (whitespace *> kw("VALUES") *> parens(repSep(expr, 1, comma)))
   ).mapN { case (table, columns, values) => Sql.Insert(table, columns.toList, values) }
