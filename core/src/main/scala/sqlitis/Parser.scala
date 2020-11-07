@@ -18,43 +18,46 @@ object Parser {
     string1(s).as(s)
   }
 
-  private def parens[A](p: P[A]): Parser1[A] = string1("(") *> p <* string1(")")
+  private def parens[A](p: P[A]): Parser1[A] = char('(') *> p <* char(')')
 
   private def token[A](p: Parser1[A]) = p <* maybeWhitespace
 
-  private def letter = charWhere(_.isLetter)
+  private val letter                    = charWhere(_.isLetter)
+  private val whitespace: Parser1[Unit] = charsWhile1(_.isWhitespace).void
+  private val maybeWhitespace: P[Unit]  = charsWhile(_.isWhitespace).void
+  private val comma                     = string1(",") <* maybeWhitespace
+  private val literal                   = string1("?").as(Literal(()))
 
-  private def comma   = string1(",") <* maybeWhitespace
-  private def literal = string1("?").as(Literal(()))
+  private val keywords                = Set("WHERE") // TODO: all of these
+  private val keywordP: Parser1[Unit] = oneOf1(keywords.map(string1).toList)
 
-  private val keywords = Set("WHERE") // TODO: all of these
-
-  lazy val idToken =
-    (
+  private val idToken: Parser1[String] =
+    (!keywordP).with1 *> (
       letter ~ charsWhile(c => c.isLetterOrDigit || c == '_')
-    ).string.flatMap(s => if (keywords(s.toUpperCase)) P.fail else P.pure(s))
+    ).string
 
-  private lazy val identifier: Parser1[Identifier] =
-    ((idToken <* char('.')) ~ idToken).map { case (r, i) => Identifier(Some(r), i) } |
-      idToken.map(Identifier(None, _))
+  private val identifier: Parser1[Identifier] =
+    (idToken ~ (char('.') *> idToken).?).map {
+      case (r, Some(i)) => Identifier(Some(r), i)
+      case (i, None)    => Identifier(None, i)
+    }
 
-  private lazy val not: Parser1[Expression[Unit]] = (kw("NOT") *> expr).map(Not(_))
+  private val not: Parser1[Expression[Unit]] = (kw("NOT") *> expr).map(Not(_))
 
-  private lazy val functionCall: Parser1[Expression[Unit]] =
+  private val functionCall: Parser1[Expression[Unit]] =
     (identifier ~ parens(repSep(expr, 0, comma))).map { case (n, args) =>
       FunctionCall(n.name, args)
     }
 
-  lazy val singleExpr: Parser1[Expression[Unit]] =
+  private val singleExpr: Parser1[Expression[Unit]] =
     token(
       P.oneOf1(
-        List(
-          not,
-          functionCall,
-          identifier,
-          literal,
-          parens(expr)
-        ).map(_.backtrack)
+        not ::
+          functionCall.backtrack ::
+          identifier ::
+          literal ::
+          parens(expr) ::
+          Nil
       )
     )
 
@@ -71,7 +74,34 @@ object Parser {
   private def l(h: Op, t: Op*) = Level(NonEmptyList(h, t.toList), leftAssociative = true)
   private def r(h: Op, t: Op*) = Level(NonEmptyList(h, t.toList), leftAssociative = false)
 
-  private lazy val opsByPrecedence =
+  private def kw(s: String): Parser1[String] = token(stringCI(s)).backtrack
+
+  private def optKw[A](k: String, parser: P[A]): P[Option[A]] =
+    (kw(k) *> parser).? <* maybeWhitespace
+
+  private val field: Parser1[Field[Unit]] =
+    token(
+      P.oneOf1[Field[Unit]](
+        (expr ~ (kw("AS") *> idToken).?).map { case (e, as) => ExpressionField(e, as) } ::
+          (idToken <* kw(".*")).map(t => Splat(Some(t))) ::
+          kw("*").as(Splat(None)) ::
+          Nil
+      )
+    )
+
+  private val from =
+    token[From](
+      (identifier ~ whitespace ~ identifier).map { case ((t, _), a) => TableName(t.name, Some(a.name)) } |
+        identifier.map(i => TableName(i.name, None))
+    )
+
+  private val orderBy = (
+    expr ~ (kw("ASC").as(true) | kw("DESC").as(false)).backtrack.?.map(_.getOrElse(false))
+  ).map { case (e, asc) => OrderBy[Unit](e, asc) }
+
+  private val int: Parser1[Int] = Numbers.signedIntString.map(_.toInt)
+
+  private val opsByPrecedence =
     List(
       l(Op("^", Exp[Unit])),
       l(Op("*", Mul[Unit]), Op("/", Div[Unit]), Op("%", Mod[Unit])),
@@ -80,38 +110,6 @@ object Parser {
       l(Op("AND", And[Unit])),
       l(Op("OR", Or[Unit]))
     )
-
-  private def kw(s: String): Parser1[String] = token(stringCI(s)).backtrack
-
-  private def optKw[A](k: String, parser: P[A]): P[Option[A]] =
-    kw(k).?.flatMap {
-      case Some(_) => parser.map(Some(_))
-      case None    => P.pure(None)
-    } <* maybeWhitespace
-
-  private lazy val whitespace: Parser1[Unit] = charsWhile1(_.isWhitespace).void
-
-  private lazy val maybeWhitespace: P[Unit] = charsWhile(_.isWhitespace).void
-
-  private lazy val field: Parser1[Field[Unit]] =
-    token(
-      (expr ~ kw("AS") ~ identifier).map[Field[Unit]] { case ((e, _), i) => ExpressionField(e, Some(i.name)) } |
-        (identifier <* kw(".") <* kw("*")).map[Field[Unit]](i => Splat(Some(i.name))) |
-        kw("*").map[Field[Unit]](_ => Splat(None)) |
-        expr.map[Field[Unit]](ExpressionField(_, None))
-    )
-
-  private lazy val from =
-    token[From](
-      (identifier ~ whitespace ~ identifier).map { case ((t, _), a) => TableName(t.name, Some(a.name)) } |
-        identifier.map(i => TableName(i.name, None))
-    )
-
-  private lazy val orderBy = (
-    expr ~ (kw("ASC").as(true) | kw("DESC").as(false)).backtrack.?.map(_.getOrElse(false))
-  ).map { case (e, asc) => OrderBy[Unit](e, asc) }
-
-  private lazy val int: Parser1[Int] = Numbers.signedIntString.map(_.toInt)
 
   implicit lazy val expr: Parser1[Expression[Unit]] =
     defer1(
@@ -133,14 +131,14 @@ object Parser {
         }
     )
 
-  implicit lazy val select: P[Select[Unit]] = (
-    kw("SELECT") *> (kw("DISTINCT")).?.map(_.isDefined) ~
-      repSep(field, 0, comma) ~
-      optKw("FROM", repSep(from, 1, comma)).map(_.getOrElse(Nil)) ~
-      optKw("WHERE", expr <* maybeWhitespace) ~
-      optKw("ORDER BY", orderBy) ~
-      optKw("LIMIT", token(int))
-  ).map { case (((((isDistinct, fields), from), where), orderBy), limit) =>
+  implicit val select: P[Select[Unit]] = (
+    kw("SELECT") *> (kw("DISTINCT")).?.map(_.isDefined),
+    repSep(field, 0, comma),
+    optKw("FROM", repSep(from, 1, comma)).map(_.getOrElse(Nil)),
+    optKw("WHERE", expr <* maybeWhitespace),
+    optKw("ORDER BY", orderBy),
+    optKw("LIMIT", token(int))
+  ).mapN { case (isDistinct, fields, from, where, orderBy, limit) =>
     Select(
       isDistinct = isDistinct,
       fields = fields,
@@ -151,12 +149,10 @@ object Parser {
     )
   }
 
-  implicit lazy val insert: P[Insert[Unit]] = (
-    kw("INSERT") *> kw("INTO") *> token(idToken) ~ parens(rep1Sep(token(idToken), 1, comma)) ~ (whitespace *> kw(
-      "VALUES"
-    ) *> parens(
-      repSep(expr, 1, comma)
-    ))
-  ).map { case ((table, columns), values) => Sql.Insert(table, columns.toList, values) }
+  implicit val insert: P[Insert[Unit]] = (
+    kw("INSERT") *> kw("INTO") *> token(idToken),
+    parens(rep1Sep(token(idToken), 1, comma)),
+    (whitespace *> kw("VALUES") *> parens(repSep(expr, 1, comma)))
+  ).mapN { case (table, columns, values) => Sql.Insert(table, columns.toList, values) }
 
 }
