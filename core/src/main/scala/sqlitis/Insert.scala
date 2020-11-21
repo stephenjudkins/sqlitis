@@ -1,7 +1,8 @@
 package sqlitis
 
-import sqlitis.Query.Ctx.Queried
-import sqlitis.Query.{Column, Ctx, Ref, Table}
+import sqlitis.Ctx.Queried
+import sqlitis.Ctx
+import sqlitis.Query.{Column, Table}
 import shapeless._
 import shapeless.ops.hlist.{FillWith, ZipApply}
 import sqlitis.Sql.{Expression, Identifier, Literal}

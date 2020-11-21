@@ -5,8 +5,8 @@ import cats.implicits._
 import _root_.doobie.{Query => _, _}
 import _root_.doobie.implicits._
 import _root_.doobie.h2._
-import sqlitis.Query.{Column, Ctx, Ref, Table, Q}
-import sqlitis.doobie.Doobie
+import sqlitis.Query.{Column, Table}
+import sqlitis.doobie.DoobieBackend
 import shapeless._
 import scala.io.Source
 import scala.concurrent.ExecutionContext
@@ -61,9 +61,11 @@ object DoobieTests extends TestSuite {
     )
   }
 
-  val query: Q[Unit, (Ref[Unit, String], Ref[Unit, String])] = for {
-    person <- Query[Person]
-    pet    <- Query[Pet] if person.id === pet.id
+  import DoobieBackend._
+
+  val query = for {
+    person <- from[Person]
+    pet    <- from[Pet] if person.id === pet.id
   } yield (person.name, pet.name)
 
   def tests =
@@ -72,13 +74,14 @@ object DoobieTests extends TestSuite {
 
         val io = transactor.use { xa =>
           for {
-            _ <- _root_.doobie.Update(schema).run(()).transact(xa)
-            r <- Doobie.select(query).transact(xa)
+            _ <- Update(schema).run(()).transact(xa)
+            r <- select(query).to[List].transact(xa)
           } yield r
         }
 
+        val results = io.unsafeRunSync()
         assert(
-          io.unsafeRunSync() == List(
+          results == List(
             ("Charlie Brown", "Snoopy"),
             ("Calvin", "Hobbes")
           )

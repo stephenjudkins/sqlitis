@@ -1,10 +1,11 @@
 package sqlitis
 
-import sqlitis.Query.{Column, Ctx, Table}
+import sqlitis.Query.{Column, Table}
+import sqlitis.Ctx
+import sqlitis.Ctx.Schema
 import utest._
 import shapeless._
 import sqlitis.Insert.BuildInsert
-import sqlitis.Query.Ctx.Schema
 import sqlitis.Sql.Literal
 
 object InsertTests extends TestSuite {

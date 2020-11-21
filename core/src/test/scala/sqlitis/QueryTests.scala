@@ -2,6 +2,7 @@ package sqlitis
 
 import sqlitis.Query.{Ref => _, _}
 import sqlitis.Sql._
+import sqlitis.util.TableToQuery
 import utest._
 
 object QueryTests extends TestSuite {
@@ -24,22 +25,26 @@ object QueryTests extends TestSuite {
 
   case class TableB[C <: Ctx](
       x: C#NoDefault[Int],
-      y: C#NoDefault[String]
+      y: C#NoDefault[String],
+      z: C#NoDefault[Int]
   )
 
   implicit object TableB extends Table[TableB] {
     val schema = TableB[Ctx.Schema](
       x = Column[Int]("x"),
-      y = Column[String]("y")
+      y = Column[String]("y"),
+      z = Column[Int]("z")
     )
 
     val name = "bar"
   }
 
+  import TestBackend._
+
   def tests: Tests =
     Tests {
       "Querify" - {
-        val q = Querify("foo_42", TableA.schema)(Querify.instance)
+        val q = TableToQuery[Unit, TableA]("foo_42", TableA.schema)(TableToQuery.instance)
 
         assert(
           q == TableA[Ctx.Queried[Unit]](
@@ -52,10 +57,10 @@ object QueryTests extends TestSuite {
       "queryRef" - {
         val q = Query[TableA].map(_.a)
 
-        val o   = q.run
+        val o   = select(q)
         val sql = o.sql
 
-        implicitly[o.type <:< SelectResult[Unit, Int]]
+        implicitly[o.type <:< TestResult[Int]]
 
         val expected = Select(
           fields = List(ExpressionField(Identifier(Some("foo"), "a"), None)),
@@ -70,9 +75,9 @@ object QueryTests extends TestSuite {
         import shapeless._
         val q = Query[TableA].map(t => t.a :: t.b :: HNil)
 
-        val o = q.run
+        val o = select(q)
 
-        implicitly[o.type <:< SelectResult[Unit, Int :: String :: HNil]]
+        implicitly[o.type <:< TestResult[Int :: String :: HNil]]
 
         val expected = Select(
           fields = List(
@@ -93,11 +98,11 @@ object QueryTests extends TestSuite {
           a2 <- Query[TableA] if a1.a === a2.a
         } yield (a1.a, a2.b)
 
-        implicitly[q.type <:< Q[Unit, (Ref[Int], Ref[String])]]
+        implicitly[q.type <:< Query[Unit, (Ref[Int], Ref[String])]]
 
-        val o = q.run
+        val o = select(q)
 
-        implicitly[o.type <:< SelectResult[Unit, (Int, String)]]
+        implicitly[o.type <:< TestResult[(Int, String)]]
 
         val sql = o.sql
         val expected = Select(
@@ -114,34 +119,34 @@ object QueryTests extends TestSuite {
       }
 
       "queryNestedTuple" - {
-        val q = Query[TableA].map(t => ((t.a, t.b), t.b))
+        val q = Query[TableB].map(t => ((t.x, t.y), t.z))
 
-        implicitly[q.type <:< Q[Unit, ((Ref[Int], Ref[String]), Ref[String])]]
+        implicitly[q.type <:< Query[Unit, ((Ref[Int], Ref[String]), Ref[Int])]]
 
-        val o = q.run
+        val o = select(q)
 
-        implicitly[o.type <:< SelectResult[Unit, ((Int, String), String)]]
+        implicitly[o.type <:< TestResult[((Int, String), Int)]]
 
         val sql = o.sql
 
         val expected = Select(
           fields = List(
-            ExpressionField(Identifier(Some("foo"), "a"), None),
-            ExpressionField(Identifier(Some("foo"), "b"), None),
-            ExpressionField(Identifier(Some("foo"), "b"), None)
+            ExpressionField(Identifier(Some("bar"), "x"), None),
+            ExpressionField(Identifier(Some("bar"), "y"), None),
+            ExpressionField(Identifier(Some("bar"), "z"), None)
           ),
-          from = List(TableName("foo", None))
+          from = List(TableName("bar", None))
         )
         assert(sql == expected)
 
       }
 
       "queryTable" - {
-        val o = Query[TableA].run
+        val o = select(Query[TableA])
 
         val sql = o.sql
 
-        implicitly[o.type <:< SelectResult[Unit, TableA[Ctx.Concrete]]]
+        implicitly[o.type <:< TestResult[TableA[Ctx.Concrete]]]
 
         val expected = Select(
           fields = List(
@@ -163,7 +168,7 @@ object QueryTests extends TestSuite {
           tb <- Query[TableB] if ta.a === tb.x
         } yield (ta.b, tb.y)
 
-        val sql = q.run.sql
+        val sql = select(q).sql
 
         val expected = Select(
           fields = List(
