@@ -61,7 +61,7 @@ object Query {
 
   case class SelectResult[X, A, R[_]](
       sql: Sql.Select[X],
-      result: R[A]
+      decode: R[A]
   )
 
 }
@@ -86,7 +86,7 @@ trait Query[X, A] { self =>
 
     SelectResult[X, O, R](
       sql = select,
-      result = result
+      decode = result
     )
   }
 
@@ -111,4 +111,6 @@ trait Query[X, A] { self =>
         (a, s2.copy(filter = newFilter))
       }
     }
+
+  def filter(f: A => Ref[X, Boolean]): Query[X, A] = withFilter(f)
 }

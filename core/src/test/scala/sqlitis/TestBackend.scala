@@ -27,7 +27,8 @@ object NoGet {
 case class TestResult[A](sql: Sql.Select[Unit])
 
 object TestBackend extends Backend[UnitPut, Unit, NoGet, TestResult] {
-  def l[A: UnitPut](a: A): Unit = ()
+
+  protected def elem[A: UnitPut](a: A): Unit = ()
 
   def select[A, O](q: Query[Unit, A])(implicit
       resultExtractor: ResultExtractor[A, O, Unit, NoGet]

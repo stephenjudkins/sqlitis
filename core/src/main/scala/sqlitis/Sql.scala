@@ -11,7 +11,9 @@ object Sql {
       where: Option[Expression[A]] = None,
       orderBy: Option[OrderBy[A]] = None,
       limit: Option[Int] = None
-  ) extends Statement[A]
+  ) extends Statement[A] {
+    def reverseFields = copy(fields = fields.reverse)
+  }
 
   sealed trait Field[+A]
   case class ExpressionField[+A](e: Expression[A], as: Option[String]) extends Field[A]

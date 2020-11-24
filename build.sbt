@@ -39,3 +39,14 @@ lazy val doobie = (project in file("doobie"))
     ),
     ourOptions
   )
+
+lazy val skunk = (project in file("skunk"))
+  .dependsOn(core)
+  .settings(
+    libraryDependencies ++= Seq(
+      "org.tpolecat" %% "skunk-core" % "0.0.20",
+      "com.lihaoyi"  %% "utest"      % "0.7.5" % Test
+    ),
+    ourOptions,
+    addCompilerPlugin("org.typelevel" %% "kind-projector" % "0.11.0" cross CrossVersion.full)
+  )

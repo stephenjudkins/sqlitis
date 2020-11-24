@@ -8,7 +8,8 @@ import cats.parse.{Parser => CatsParser}
 object ParserGenTests extends TestSuite {
 
   def testSql[A[_]](sql: String, ast: A[Unit])(implicit parser: CatsParser[A[Unit]], generator: Generator[A]) = {
-    val parsed         = parser.parseAll(sql)
+    val parsed = parser.parseAll(sql)
+
     val (_, generated) = generator.generate(ast)
 
     parsed match {
@@ -29,7 +30,7 @@ object ParserGenTests extends TestSuite {
   ) = {
     val parsed                      = parser.parseAll(sql)
     val (actualCaptures, generated) = generator.generate(ast)
-    assert(captures == actualCaptures.reverse)
+    assert(captures == actualCaptures)
     val parsedAgain = parser.parseAll(generated)
     assert(parsed == parsedAgain)
 
