@@ -6,7 +6,7 @@ import cats.effect._
 import skunk.{Codec, Session, Void}
 import sqlitis.Ctx
 import sqlitis.Query.{Column, Table}
-import utest.{TestSuite, Tests, assert}
+import utest._
 import natchez.Trace.Implicits.noop
 import skunk.util.Origin
 
@@ -83,11 +83,12 @@ object SkunkTests extends TestSuite {
   }
 
   def tests: Tests = Tests {
-    val query = from[Pet].filter(_.name === l("Hobbes")).map(t => (t.name, t.personId))
+    "basic query" - {
+      val query = from[Pet].filter(_.name === l("Hobbes")).map(p => (p.name, p.personId))
 
-    val results = run(select(query))
+      val results = run(select(query))
 
-    assert(results == List(("Hobbes", 2)))
-
+      assert(results == List(("Hobbes", 2)))
+    }
   }
 }

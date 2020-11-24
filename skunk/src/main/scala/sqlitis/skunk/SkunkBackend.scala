@@ -42,8 +42,8 @@ object SkunkBackend extends Backend[Encoder, Encoded[_], Decoder, QueryService.Q
       resultExtractor: ResultExtractor[A, O, Encoded[_], Decoder]
   ) = {
     val out = q.as[O, Decoder]
-    // gotta reverse these because Skunk's `Apply` is right-associative
-    val (args, sql) = Generator.GenSelect.generate(out.sql.reverseFields, i => s"$$$i")
+
+    val (args, sql) = Generator.GenSelect.generate(out.sql, i => s"$$$i")
 
     val e: Encoder[List[Encoded[_]]] = new Encoder[List[Encoded[_]]] {
       def sql: State[Int, String]                           = State.empty

@@ -30,9 +30,7 @@ object ResultExtractor {
         val (accum1, rt) = tail(accum, a.tail)
         val (accum2, rh) = h(accum1, a.head)
 
-        val r = (rt, rh).mapN { case (t, h) => h :: t }
-
-        (accum2, r)
+        (accum2, (rh, rt).mapN { case (h, t) => h :: t })
       }
     }
 
