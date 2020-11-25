@@ -101,23 +101,15 @@ trait Generator[F[_]] {
   def print[X](a: F[X]): String = generate(a)._2
   def gen[A](f: F[A]): Out[A]
 
-  def generate[A](f: F[A], p: Int => String = _ => "?") = {
+  def generate[A](f: F[A], p: Int => String = _ => "?"): (List[A], String) = {
     import Generator._
 
-    val out = gen(f)
+    def impl(i: Int, in: Out[A], sAccum: List[String], aAccum: List[A]): (List[A], String) = in match {
+      case S(s) :: xs => impl(i, xs, s :: sAccum, aAccum)
+      case V(a) :: xs => impl(i + 1, xs, p(i) :: sAccum, a :: aAccum)
+      case Nil        => (aAccum.reverse, sAccum.reverse.mkString)
+    }
 
-    var i = 0
-
-    val sql = out.map {
-      case S(s) => s
-      case V(_) => {
-        i += 1
-        p(i)
-      }
-    }.mkString
-
-    val args = out.collect { case V(a) => a }
-
-    (args, sql)
+    impl(1, gen(f), Nil, Nil)
   }
 }
