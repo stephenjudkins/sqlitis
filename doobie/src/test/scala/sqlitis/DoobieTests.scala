@@ -51,17 +51,17 @@ object DoobieTests extends TestSuite {
 
     val transactor: Resource[IO, H2Transactor[IO]] =
       for {
-        ce <- ExecutionContexts.fixedThreadPool[IO](32) // our connect EC
         te <- ExecutionContexts.cachedThreadPool[IO] // our transaction EC
         xa <- H2Transactor.newH2Transactor[IO](
           s"jdbc:h2:mem:;DB_CLOSE_DELAY=-1", // connect URL
           "sa",                              // username
           "",                                //   password
-          ce,                                // await connection here
+          ExecutionContext.global,           // await connection here
           Blocker.liftExecutionContext(te)   // execute JDBC operations here
         )
       } yield xa
 
+    implicitly[Bracket[IO, Throwable]]
     transactor
       .use { xa =>
         for {
@@ -97,6 +97,23 @@ object DoobieTests extends TestSuite {
         val results = run(select(query).to[List])
 
         assert(results == List("Hobbes"))
+      }
+
+      "insert" - {
+        val query = for {
+          _ <- insert(
+            Pet[Ctx.Inserted](
+              id = None,
+              name = "Spaceman Spiff",
+              personId = 2
+            )
+          ).run
+          o <- select(from[Pet].filter(_.personId === l(2)).map(_.name)).to[List]
+        } yield o
+
+        val results = run(query)
+
+        assert(results == List("Hobbes", "Spaceman Spiff"))
       }
     }
 }

@@ -1,6 +1,8 @@
 package sqlitis
 
 import cats._
+import sqlitis.Ctx.Inserted
+import sqlitis.Insert.Convert
 import sqlitis.util.{ReadFromReference, ResultExtractor}
 
 trait UnitPut[A]
@@ -24,9 +26,9 @@ object NoGet {
   }
 }
 
-case class TestResult[A](sql: Sql.Select[Unit])
+case class TestResult[A](sql: Sql.Statement[Unit])
 
-object TestBackend extends Backend[UnitPut, Unit, NoGet, TestResult] {
+object TestBackend extends Backend[UnitPut, Unit, NoGet, TestResult, TestResult[Unit]] {
 
   protected def elem[A: UnitPut](a: A): Unit = ()
 
@@ -37,5 +39,17 @@ object TestBackend extends Backend[UnitPut, Unit, NoGet, TestResult] {
 
     TestResult[O](o.sql)
   }
+
+  def insert[T[_ <: Ctx]: Query.Table, O](row: T[Inserted])(implicit
+      b: Insert.BuildInsert[T, Unit, UnitPut, Unit]
+  ): TestResult[Unit] =
+    TestResult[Unit](
+      b(
+        row,
+        new Convert[UnitPut, Unit] {
+          def apply[A](a: A, put: UnitPut[A]): Unit = ()
+        }
+      )
+    )
 
 }

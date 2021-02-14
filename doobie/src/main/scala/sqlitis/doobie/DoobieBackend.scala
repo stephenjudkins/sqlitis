@@ -3,11 +3,14 @@ package sqlitis.doobie
 import cats.{Applicative, Apply}
 import doobie.util.fragment.{Elem, Fragment}
 import doobie.util.query.Query0
+import doobie.util.update.Update0
 import doobie.util.{Get, Put, Read}
+import sqlitis.Ctx.Inserted
+import sqlitis.Insert.Convert
 import sqlitis.Query.Ref
 import sqlitis.Sql.Literal
 import sqlitis.util.{ReadFromReference, ResultExtractor}
-import sqlitis.{Backend, Generator, Query}
+import sqlitis.{Backend, Ctx, Generator, Insert, Query}
 
 trait ReadDoobie[A] {
   def read: Read[A]
@@ -36,7 +39,7 @@ object ReadDoobie {
   }
 }
 
-object DoobieBackend extends Backend[Put, Elem, ReadDoobie, Query0] {
+object DoobieBackend extends Backend[Put, Elem, ReadDoobie, Query0, Update0] {
 
   def elem[A: Put](a: A): Elem = Elem.Arg(a, implicitly[Put[A]])
 
@@ -45,5 +48,20 @@ object DoobieBackend extends Backend[Put, Elem, ReadDoobie, Query0] {
     val (args, sql) = Generator.GenSelect.generate(out.sql)
 
     Fragment(sql, args).query[O](out.decode.read)
+  }
+
+  def insert[T[_ <: Ctx]: Query.Table, O](
+      row: T[Inserted]
+  )(implicit b: Insert.BuildInsert[T, Elem, Put, Unit]): Update0 = {
+    val i = b(
+      row,
+      new Convert[Put, Elem] {
+        def apply[A](a: A, put: Put[A]): Elem = Elem.Arg(a, put)
+      }
+    )
+
+    val (args, sql) = Generator.GenInsert.generate(i)
+
+    Fragment(sql, args).update
   }
 }

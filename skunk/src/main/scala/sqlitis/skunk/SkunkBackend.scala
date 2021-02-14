@@ -6,8 +6,10 @@ import cats.effect.IO
 import skunk._
 import skunk.data.Type
 import skunk.util.Origin
-import sqlitis.skunk.QueryService.Q
-import sqlitis.{Backend, Generator, Query}
+import sqlitis.Ctx.Inserted
+import sqlitis.Insert.Convert
+import sqlitis.skunk.QueryService.{Q, Update}
+import sqlitis.{Backend, Ctx, Generator, Insert, Query}
 import sqlitis.util.{ReadFromReference, ResultExtractor}
 
 trait QueryService[A] {
@@ -15,14 +17,15 @@ trait QueryService[A] {
 }
 
 object QueryService {
-  type Q[A] = Session[IO] => QueryService[A]
+  type Q[A]   = Session[IO] => QueryService[A]
+  type Update = Session[IO] => IO[Unit]
 }
 
 case class Encoded[A](a: A, encoder: Encoder[A]) {
   def encoded = encoder.encode(a)
 }
 
-object SkunkBackend extends Backend[Encoder, Encoded[_], Decoder, QueryService.Q] {
+object SkunkBackend extends Backend[Encoder, Encoded[_], Decoder, QueryService.Q, QueryService.Update] {
 
   implicit val encoderApplicative: Applicative[Decoder] = new Applicative[Decoder] {
     def pure[A](x: A): Decoder[A] = new Decoder[A] {
@@ -61,4 +64,28 @@ object SkunkBackend extends Backend[Encoder, Encoded[_], Decoder, QueryService.Q
 
   }
 
+  def insert[T[_ <: Ctx]: Query.Table, O](
+      row: T[Inserted]
+  )(implicit b: Insert.BuildInsert[T, Encoded[_], Encoder, Unit]): Update = {
+    val insert = b(
+      row,
+      new Convert[Encoder, Encoded[_]] {
+        def apply[A](a: A, put: Encoder[A]): Encoded[_] = Encoded(a, put)
+      }
+    )
+
+    val (args, sql) = Generator.GenInsert.generate(insert, i => s"$$$i")
+
+    val e: Encoder[List[Encoded[_]]] = new Encoder[List[Encoded[_]]] {
+      def sql: State[Int, String]                           = State.empty
+      def encode(a: List[Encoded[_]]): List[Option[String]] = a.flatMap(_.encoded)
+      def types: List[Type]                                 = args.flatMap(_.encoder.types)
+    }
+
+    val command = skunk.Command[List[Encoded[_]]](sql, Origin.unknown, e)
+
+    { session: Session[IO] =>
+      session.prepare(command).use(c => c.execute(args)).as(())
+    }
+  }
 }

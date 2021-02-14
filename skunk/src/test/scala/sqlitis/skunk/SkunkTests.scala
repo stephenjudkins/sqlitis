@@ -60,35 +60,58 @@ object SkunkTests extends TestSuite {
 
   import SkunkBackend._
 
-  def run[A](f: Session[IO] => QueryService[A]): List[A] = {
-    val session: Resource[IO, Session[IO]] =
-      Session.single[IO](
-        host = "localhost",
-        user = "stephen",
-        database = "test"
-      )
+  private def session: Resource[IO, Session[IO]] =
+    Session.single[IO](
+      host = "localhost",
+      user = "stephen",
+      database = "test"
+    )
 
-    session
-      .use(s =>
-        s.transaction.use { xa =>
-          for {
-            sp <- xa.savepoint
-            _  <- schema.map(c => s.execute(_root_.skunk.Command(c, Origin.unknown, Void.codec))).sequence
-            o  <- f(s).list
-            _  <- xa.rollback(sp)
-          } yield o
-        }
+  private def tx: Resource[IO, Session[IO]] =
+    for {
+      session     <- session
+      transaction <- session.transaction
+      _           <- Resource.make(transaction.savepoint)(transaction.rollback(_).as(()))
+      _ <- Resource.liftF(
+        schema.map(c => session.execute(_root_.skunk.Command(c, Origin.unknown, Void.codec))).sequence
       )
-      .unsafeRunSync()
-  }
+    } yield session
 
   def tests: Tests = Tests {
     "basic query" - {
-      val query = from[Pet].filter(_.name === l("Hobbes")).map(p => (p.name, p.personId))
 
-      val results = run(select(query))
+      select(from[Pet].filter(_.name === l("Hobbes")).map(p => (p.name, p.personId)))
+
+      val results =
+        tx
+          .map(select(from[Pet].filter(_.name === l("Hobbes")).map(p => (p.name, p.personId))))
+          .use(_.list)
+          .unsafeRunSync()
 
       assert(results == List(("Hobbes", 2)))
+    }
+
+    "insert" - {
+      val i = insert(
+        Person[Ctx.Inserted](
+          id = Some(42),
+          name = "Zed",
+          age = 100
+        )
+      )
+
+      val s = select(from[Person].filter(_.id === l(42)).map(_.name))
+
+      val results = tx
+        .use(session =>
+          for {
+            _ <- i(session)
+            r <- s(session).list
+          } yield r
+        )
+        .unsafeRunSync()
+
+      assert(results == List("Zed"))
     }
   }
 }

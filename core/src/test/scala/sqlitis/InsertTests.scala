@@ -1,12 +1,9 @@
 package sqlitis
 
-import sqlitis.Query.{Column, Table}
-import sqlitis.Ctx
 import sqlitis.Ctx.Schema
-import utest._
-import shapeless._
-import sqlitis.Insert.BuildInsert
+import sqlitis.Query.{Column, Table}
 import sqlitis.Sql.Literal
+import utest._
 
 object InsertTests extends TestSuite {
   case class TableA[C <: Ctx](
@@ -34,7 +31,7 @@ object InsertTests extends TestSuite {
               name = "foobar"
             )
           )
-          .run[Insert.RawSql]
+          .run
 
         val expected = Sql.Insert("table_a", List("id", "name"), List(Literal(()), Literal(())))
         assert(sql == expected)
@@ -47,7 +44,7 @@ object InsertTests extends TestSuite {
               name = "foobar"
             )
           )
-          .run[Insert.RawSql]
+          .run
 
         TableA[Schema](id = Column("id"), name = Column("name"))
 
