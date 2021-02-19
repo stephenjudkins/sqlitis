@@ -62,9 +62,11 @@ object SkunkTests extends TestSuite {
 
   private def session: Resource[IO, Session[IO]] =
     Session.single[IO](
-      host = "localhost",
-      user = "stephen",
-      database = "test"
+      host = sys.env.getOrElse("POSTGRES_HOST", "localhost"),
+      user = sys.env.getOrElse("POSTGRES_USER", "stephen"),
+      database = sys.env.getOrElse("POSTGRES_DB", "test"),
+      port = sys.env.get("POSTGRES_PORT").map(_.toInt).getOrElse(5432),
+      password = sys.env.get("POSTGRES_PASSWORD")
     )
 
   private def tx: Resource[IO, Session[IO]] =

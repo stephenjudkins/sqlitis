@@ -1,0 +1,29 @@
+name: Build
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-20.04
+    container: hseeberger/scala-sbt:15.0.2_1.4.7_2.13.4
+    services:
+      postgres:
+        image: postgres:13.2
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 1s
+          --health-timeout 5s
+          --health-retries 30
+    steps:
+      - uses: actions/checkout@v2
+      - uses: coursier/cache-action@v3
+      - run: sbt test
+        env:
+          POSTGRES_HOST: postgres
+          POSTGRES_PORT: 5432
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test
+          POSTGRES_USER: postgres
