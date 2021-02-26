@@ -86,8 +86,7 @@ object SkunkTests extends TestSuite {
 
       val results =
         tx
-          .map(select(from[Pet].filter(_.name === l("Hobbes")).map(p => (p.name, p.personId))))
-          .use(_.list)
+          .use(select(from[Pet].filter(_.name === l("Hobbes")).map(p => (p.name, p.personId))).list)
           .unsafeRunSync()
 
       assert(results == List(("Hobbes", 2)))
@@ -108,7 +107,7 @@ object SkunkTests extends TestSuite {
         .use(session =>
           for {
             _ <- i(session)
-            r <- s(session).list
+            r <- s.list(session)
           } yield r
         )
         .unsafeRunSync()

@@ -13,11 +13,11 @@ import sqlitis.{Backend, Ctx, Generator, Insert, Query}
 import sqlitis.util.{ReadFromReference, ResultExtractor}
 
 trait QueryService[A] {
-  def list: IO[List[A]]
+  def list(session: Session[IO]): IO[List[A]]
 }
 
 object QueryService {
-  type Q[A]   = Session[IO] => QueryService[A]
+  type Q[A]   = QueryService[A]
   type Update = Session[IO] => IO[Unit]
 }
 
@@ -56,10 +56,8 @@ object SkunkBackend extends Backend[Encoder, Encoded[_], Decoder, QueryService.Q
 
     val query = skunk.Query[List[Encoded[_]], O](sql, Origin.unknown, e, out.decode)
 
-    { session: Session[IO] =>
-      new QueryService[O] {
-        def list: IO[List[O]] = session.prepare(query).use(p => p.stream(args, 42).compile.toList)
-      }
+    new QueryService[O] {
+      def list(session: Session[IO]): IO[List[O]] = session.prepare(query).use(p => p.stream(args, 42).compile.toList)
     }
 
   }
